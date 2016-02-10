@@ -1,5 +1,3 @@
-$Id: README,v 1.4 2008/06/25 08:22:43 pulkomandy Exp $
-
 README for dsktools Version 0.2.1
 =================================
 
