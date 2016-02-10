@@ -1,0 +1,16 @@
+$Id: TODO,v 1.1 2001/12/27 01:53:07 nurgle Exp $
+
+TODO:
+
+- support EDSK properly
+- handle less common parameter like double sided disks, etc.
+- handle difficult copy protection schemes like the one on Prehistoric2 for
+  example
+- make side of disc (head) selectable
+- improve user interface
+- clean up code
+- integrate with amssdsk
+- add clever build system, use GNU autoconf/automake
+- maybe sync with John Elliots libdsk
+- build GTK+ GUI
+

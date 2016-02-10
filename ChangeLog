@@ -1,0 +1,88 @@
+$Id: ChangeLog,v 1.6 2008/06/29 21:36:26 nurgle Exp $
+
+V0.2.3
+
+08.02.2012:
+- Write double sided DSK images
+
+V0.2.2
+
+29.06.2008:
+- Minor code reformatting.
+- Adjust AUTHORS.
+
+25.06.2008:
+- Added multiple try on reading and writing (PulkoMandy)
+- Writing to side B (François Lacombe)
+
+==============================================================================
+
+V0.2.1
+
+31.12.2004:
+- Fix buffer overrun in dskwrite when handling long tracks.
+- Adjust documentation (README).
+
+==============================================================================
+
+V0.2
+
+24.08.2003:
+- More compatible drive seek (Kevin Thacker)
+- Major enhancements to dskread: More options, more formats (Kevin Thacker)
+- Add flexible command line parsing to dskread (via GNU getopt)
+- Add comments and benchmark targets to makefile
+- Adjust documentation (README, AUTHORS)
+
+==============================================================================
+
+V0.1.0
+
+30.12.2001:
+- Write documentation (README, AUTHORS)
+- Add gvim option to Makefile
+
+==============================================================================
+
+V0.0.4
+
+27.12.2001:
+- Interleave sector reading for a major speedup.
+- Reset and recalibrate drive at beginning of program.
+- Move ChangeLog into separate file.
+- Move TODO into separate file.
+
+26.12.2001:
+- Actually read sector IDs from disk to recognize different formats.
+
+25.12.2001:
+- First working version of dskread.
+- Only reads DATA format.
+
+24.12.2001:
+- moved common types and routines for dskwrite and dskread into common.c
+- First version of dskread in dsktools.
+
+==============================================================================
+
+V0.0.3
+
+21.12.2001:
+- merged in changes from Kevin Thacker to handle more copy protection
+  schemes: - invalid track and head ids in sector headers
+           - deleted data (untested)
+==============================================================================
+
+V0.0.2
+
+21.6.2001:
+- added rudimentary support for EDSK images
+- added command line argument for input file instead of reading stdin
+
+==============================================================================
+
+V0.0.1
+
+20.6.2001:
+- first working version of dskwrite
+
