@@ -5,7 +5,7 @@
 all:	dskwrite dskread
 
 clean:
-	rm dskread dskwrite *.o *~
+	rm -f dskread dskwrite *.o *~
 
 # edit and debug targets
 
