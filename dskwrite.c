@@ -23,6 +23,7 @@
 
 #include <unistd.h>
 #include <stdio.h>
+#include <getopt.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -156,11 +157,11 @@ void write_sect(int fd, Trackinfo *trackinfo, Sectorinfo *sectorinfo,
 			sectorinfo->sector);
 }
 
-void writedsk(char *filename, unsigned char side) {
+void writedsk(char *filename, int drivenum, int side) {
 
 	/* Variable declarations */
 	int fd, tmp, err;
-	char *drive;
+	char drive[16];
 	struct floppy_raw_cmd raw_cmd;
 	//char buffer[ 512 * 2 * 24 ];
 	//char buffer[ 512 * 9 ];
@@ -180,7 +181,7 @@ void writedsk(char *filename, unsigned char side) {
 	char flag_edisk = FALSE;	// indicates extended disk image format
 
 	/* initialization */
-	drive = "/dev/fd0";
+	sprintf(drive, "/dev/fd%01d", drivenum);
 
 	/* open drive */
 	fd = open( drive, O_ACCMODE | O_NDELAY);
@@ -262,16 +263,52 @@ void writedsk(char *filename, unsigned char side) {
 
 }
 
-int main(int argc, char **argv) {
-
-	if (argc == 2) {
-		writedsk(argv[1],0);
-	} else if( (argc==3) && (strcmp(argv[1],"b")==0) ) {
-		writedsk(argv[2],4); //Write on side B
-	} else {
-		fprintf(stderr, "usage: dskwrite [b] <filename>\n");
+int help_exit(const char *message, int exitcode) {
+	if (message) {
+		fprintf(stderr, "%s\n\n", message);
 	}
+	fprintf(stderr, "Usage: dskwrite [options] <filename>\n");
+	fprintf(stderr, " Options: -d | --drive <drive>    selects drive\n");
+	fprintf(stderr, "          -s | --side <side>      selects side\n");
+	fprintf(stderr, "          -h                      shows this help\n");
+	return exitcode;
+}
+
+
+int main(int argc, char **argv) {
+	static struct option long_options[] = {
+		{"drive", 1, 0, 'd'},
+		{"side", 1, 0, 's'},
+		{"help", 0, 0, 'h'},
+		{0, 0, 0, 0}
+	};
+	int c;
+	int drive = 0;
+	int side = 0;
+
+	do {
+		int this_option_optind = optind ? optind : 1;
+		int option_index = 0;
+		c = getopt_long(argc, argv, "d:s:h",
+			long_options, &option_index);
+		switch(c) {
+			case 'h':
+			case '?':
+				exit(help_exit(0, 0));
+				break;
+			case 'd':
+				drive = atoi(optarg);
+				break;
+			case 's':
+				side = atoi(optarg);
+				break;
+		}
+	} while (c != -1);
+
+	if (argc - optind != 1) {
+		exit(help_exit("Error: No dsk source file provided", 1));
+	}
+	writedsk(argv[optind], drive, side);
 	return 0;
 
 }
-
