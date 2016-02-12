@@ -25,6 +25,10 @@
 #define DSK_HEADER "MV - CPC"
 #define NUM_DIRENT 64
 
+#define BASE_SECTOR_IBM 0x01
+#define BASE_SECTOR_SYS 0x41
+#define BASE_SECTOR_DATA 0xC1
+
 typedef struct {
 	char magic[34];
 	char creator[14];

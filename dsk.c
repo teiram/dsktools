@@ -33,7 +33,9 @@ static int is_dsk_image(dsk_type *dsk) {
 	}
 }
 
-static int min_sector_index(track_info_type *track) {
+static int first_sector_id(dsk_type *dsk) {
+	track_info_type *track0 = 
+		dsk_get_track_info(dsk, 0);
 	int i;
 	uint8_t min = ~0;
 	for (i = 0; i < track->sector_count; i++) {
@@ -44,34 +46,69 @@ static int min_sector_index(track_info_type *track) {
 	return min;
 }
 
+static uint8_t base_track_index(dsk_type *dsk) {
+	int min_sector_id = first_sector_id(dsk);
+	switch (min_sector_id) {
+	case BASE_SECTOR_IBM:
+		return 1;
+	case BASE_SECTOR_SYS:
+		return 2;
+	default:
+		return 0;
+	}
+}	
+
+static uint32_t get_sector_offset_in_track(track_info_type *track, uint8_t sector_id) {
+	uint32_t offset = 0;
+	int i;
+	for (i = 0; i < track->sector_count; i++) {
+		sector_info_type *sinfo = &track->sector_info[i];
+		if (sinfo->sector_id == sector_id) {
+			offset += sizeof(track_info_type);
+			return offset;
+		} else {
+			offset += 128 << sinfo->size;
+		}
+	}
+}
+
 static uint32_t get_track_size(dsk_type *dsk) {
 	return dsk->dsk_info->track_size[0] +
 		(dsk->dsk_info->track_size[1] << 8);
 }
 
+static uint32_t get_block_offset(dsk_type *dsk,
+				 uint8_t block) {
+	uint8_t track_index = base_track_index(dsk);
+	track_index += (block << 1) / 9;
+	uint8_t sector_id = min_sector_id(dsk);
+	sector_id += (block << 1) % 9;
+
+	uint32_t offset = 0;
+	uint32_t track_size = get_track_size(dsk);
+	offset += track_size * track;
+	track_info_type *track = dsk_get_track_info(dsk, track_index);
+	offset += get_sector_offset_in_track(track);
+
+	return offset;
+}
+
 static uint32_t get_sector_offset(dsk_type *dsk, 
-			   uint8_t track_id, uint8_t side, 
-			   uint8_t sector_id) {
-	int i,j;
+				  uint8_t track_id, uint8_t side, 
+				  uint8_t sector_id) {
+	int i;
 	uint32_t offset = 0;
 	uint32_t track_size = get_track_size(dsk);
 	for (i = 0; i < dsk->dsk_info->tracks; i++) {
 		track_info_type *track = dsk_get_track_info(dsk, i);
 		if (track->track_number == track_id &&
 		    track->side_number == side) {
-			for (j = 0; j < track->sector_count; j++) {
-				sector_info_type *sinfo = &track->sector_info[j];
-				if (sinfo->sector_id == sector_id) {
-					offset += sizeof(track_info_type);
-					return offset;
-				} else {
-					offset += 128 << sinfo->size;
-				}
-			}
+			offset += get_sector_offset_in_track(track);
 		} else {
 			offset += track_size;
 		}
 	}
+	return offset;
 }
 
 uint8_t is_dir_entry_deleted(dir_entry_type *dir_entry) {
@@ -165,17 +202,10 @@ dsk_type *dsk_new(const char *filename) {
 dir_entry_type *dsk_get_dir_entry(dsk_type *dsk, 
 				  dir_entry_type *dir_entry, 
 				  int index) {
-	track_info_type *track0 = 
-		dsk_get_track_info(dsk, 0);
-	
-	int base_sector = min_sector_index(track0);
+	int base_sector = first_sector_id(dsk);
 	int sector_id = (index >> 4) + base_sector;
-	int track = 0;
-	if (base_sector == 0x41) {
-		track = 2;
-	} else if (base_sector == 1) {
-		track = 1;
-	}
+	int track = base_track_index(dsk);
+
 	memcpy(dir_entry, dsk->image 
 	       + get_sector_offset(dsk, track, 0, sector_id)
 	       + ((index & 15) << 5),
@@ -206,4 +236,78 @@ uint32_t dsk_get_used_blocks(dsk_type *dsk) {
 		}
 	}
 	return blocks;
+}
+
+char *get_amsdos_filename(const char *name, char *buffer) {
+	char *separator = strstr(name, ".");
+	size_t len = separator ? min(separator - name, 8) ?
+		min(strlen(name), 8);
+
+	strncpy(buffer, name, len);
+	int i;
+	for (i = 0; i < 8; i++) {
+		buffer[i] = toupper(buffer[i]);
+	}
+	return buffer;
+}
+
+char *get_amsdos_extension(const char *name, char *buffer) {
+	char *separator = strstr(name, ".");
+	if (separator) {
+		strncpy(buffer, separator + 1, 3);
+		for (i = 0; i < 3; i++) {
+			buffer[i] = toupper(buffer[i]);
+		}
+	} else {
+		/* Check this, maybe we need to pad with spaces */
+		buffer[0] = 0;
+	}
+	return buffer;
+}
+
+int8_t get_dir_entry_for_file(dsk_type *dsk, 
+			      const char *name, 
+			      uint8_t user,
+			      dir_entry_type *entry) {
+	char buffer[16];
+	char *filename = get_amsdos_filename(name, buffer);
+	char *extension = get_amsdos_extension(name, buffer);
+	printf("Looking for %s.%s\n", name, extension);
+	int i = 0;
+	for (i = 0; i < NUM_DIRENT; i++) {
+		dsk_get_dir_entry(dsk, entry, i);
+		if (strncmp(filename, entry.name, 8) == 0 &&
+		    strcmp(extension, entry.extension, 3) == 0 &&
+		    entry.user == user) {	
+			return i;
+		}
+	}
+	return -1;
+}
+
+void write_entry_blocks(FILE *fd, dir_entry_type *dir_entry) {
+	int i;
+	for (i = 0; i < dir_entry->record_count; i++) {
+		if (dir_entry->blocks[i] > 0) {
+			uint32_t *src = dsk->image + 
+				get_block_offset(dsk, dir_entry->blocks[i]);
+			fwrite(src, 1024, 1, fd);
+		}
+	}
+}
+int dsk_dump_file(dsk_type *dsk, 
+		  const char *name, 
+		  const char *destination,
+		  uint8_t user) {
+
+	dir_entry_type dir_entry;
+	FILE *fd = fopen(destination, "w");
+	int index = get_dir_entry_for_file(dsk, name, user, &dir_entry);
+	if (index >= 0) {
+		do {
+			write_entry_blocks(fd, dir_entry);
+			dir_entry = get_dir_entry(dsk, &dir_entry, ++index);
+		} while ();
+	}
+	fclose(fd);
 }
