@@ -2,7 +2,7 @@
 
 # build targets
 
-all:	dskwrite dskread
+all:	dskwrite dskread dskmgmt
 
 clean:
 	rm -f dskread dskwrite *.o *~
@@ -29,6 +29,12 @@ dskwrite: dskwrite.c common.o
 common.o: common.c
 	gcc -g -c common.c
 
+dsk.o: dsk.c dsk.h
+	gcc -g -c dsk.c
+
+dskmgmt: dskmgmt.c dsk.o
+	gcc -g -o dskmgmt dskmgmt.c dsk.o
+
 # installation
 install:
-	cp dskwrite dskread /usr/local/bin
+	cp dskwrite dskread dskmgmt /usr/local/bin
