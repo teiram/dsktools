@@ -93,9 +93,9 @@ char *dsk_get_error(dsk_type *dsk);
 track_info_type *dsk_get_track_info(dsk_type *dsk, 
 				    uint8_t track);
 
-dir_entry_type *get_dir_entry(dsk_type *dsk, 
-			      dir_entry_type *dir_entry, 
-			      int index);
+dir_entry_type *dsk_get_dir_entry(dsk_type *dsk, 
+				  dir_entry_type *dir_entry, 
+				  int index);
 
 uint8_t is_dir_entry_deleted(dir_entry_type *dir_entry);
 char *dir_entry_get_name(dir_entry_type *dir_entry, char *name);

@@ -1,4 +1,4 @@
-AM_CFLAGS = -Wall -std=c99 -O2
+AM_CFLAGS = -Wall -std=c99 -D_SVID_SOURCE -O2
 AM_LDFLAGS = 
 
 bin_PROGRAMS = dskread dskwrite dskmgmt

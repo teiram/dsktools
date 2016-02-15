@@ -20,6 +20,7 @@
 
 #include "common.h"
 
+
 void myabort(char *s)
 {
 	fprintf(stderr,s);
@@ -43,8 +44,8 @@ void printsectorinfo(FILE *out, Sectorinfo *sectorinfo)
 
 void printtrackinfo(FILE *out, Trackinfo *trackinfo)
 {
-	int i;
-	char *magic = trackinfo->magic;
+	//int i;
+	//char *magic = trackinfo->magic;
 	int track = trackinfo->track;
 	int head = trackinfo->head;
 	int bps = trackinfo->bps;
@@ -105,7 +106,7 @@ void reset(int fd) {
 
 void recalibrate(int fd, int drive) {
 
-	int i, err;
+	int err;
 	struct floppy_raw_cmd raw_cmd;
 	unsigned char mask = 0xFF;
 

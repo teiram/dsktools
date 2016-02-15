@@ -4,6 +4,7 @@ dskmgmt
 *.o
 *~
 configure
+Makefile
 Makefile.in
 configure
 aclocal.m4
@@ -15,6 +16,5 @@ missing
 .deps
 config.h
 config.log
-src/Makefile
 stamp-h1
 config.status

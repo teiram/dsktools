@@ -24,6 +24,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <errno.h>
+#include <ctype.h>
 #include <sys/param.h>
 #include "dsk.h"
 #include "log.h"
@@ -37,13 +38,16 @@ static void dsk_set_error(dsk_type *dsk, const char *fmt, ...) {
 		va_start(ap, fmt);
 		vsnprintf(dsk->error, DSK_ERROR_SIZE, fmt, ap);
 	} else {
-		LOG(LOG_ERROR, "Attempt to set error on null dsk");
+		LOG(LOG_ERROR, "Attempt to set error on uninitialized DSK");
 	}
 }
 
 char *dsk_get_error(dsk_type *dsk) {
 	if (dsk) {
 		return dsk->error;
+	} else {
+		LOG(LOG_WARN, "Trying to get error from an unitialized DSK");
+		return NULL;
 	}
 }
 
@@ -70,9 +74,8 @@ static uint8_t sectors_per_track(dsk_type *dsk) {
 static uint8_t first_sector_id(dsk_type *dsk) {
 	track_info_type *track0 = 
 		dsk_get_track_info(dsk, 0);
-	int i;
 	uint8_t min = ~0;
-	for (i = 0; i < track0->sector_count; i++) {
+	for (int i = 0; i < track0->sector_count; i++) {
 		if (track0->sector_info[i].sector_id < min) {
 			min = track0->sector_info[i].sector_id;
 		}
@@ -112,6 +115,7 @@ static uint32_t get_sector_offset_in_track(track_info_type *track, uint8_t secto
 	}
 	LOG(LOG_WARN, "Sector %02x not found in track %u", sector_id,
 	    track->track_number);
+	return 0;
 }
 
 static uint32_t get_track_size(dsk_type *dsk) {
@@ -150,10 +154,9 @@ static uint32_t get_sector_offset(dsk_type *dsk,
 				  uint8_t sector_id) {
 	LOG(LOG_DEBUG, "get_sector_offset(track:%u, side: %u, sector: %02x)",
 	    track_id, side, sector_id);
-	int i;
 	uint32_t offset = 0;
 	uint32_t track_size = get_track_size(dsk);
-	for (i = 0; i < dsk->dsk_info->tracks; i++) {
+	for (int i = 0; i < dsk->dsk_info->tracks; i++) {
 		track_info_type *track = dsk_get_track_info(dsk, i);
 		LOG(LOG_DEBUG, "Searching in track %u", track->track_number);
 		if (track->track_number == track_id &&
@@ -347,8 +350,8 @@ int8_t get_dir_entry_for_file(dsk_type *dsk,
 	int i = 0;
 	for (i = 0; i < NUM_DIRENT; i++) {
 		dsk_get_dir_entry(dsk, entry, i);
-		if (strncmp(filename, entry->name, AMSDOS_NAME_LEN) == 0 &&
-		    strncmp(extension, entry->extension, AMSDOS_EXT_LEN) == 0 &&
+		if (strncmp(filename, (char*) entry->name, AMSDOS_NAME_LEN) == 0 &&
+		    strncmp(extension, (char*) entry->extension, AMSDOS_EXT_LEN) == 0 &&
 		    entry->user == user) {	
 			return i;
 		}

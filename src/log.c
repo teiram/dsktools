@@ -12,6 +12,7 @@ struct {
 	const char *filename;
 	log_type minlevel;
 } logs;
+
 static void log_init() __attribute__((constructor));
 
 static const char *log_prefix[] = {
@@ -29,13 +30,13 @@ static void log_init() {
 
 	char *estr;
 	char *eptr;
-	if (estr = getenv("DSKTOOLS_LOGLEVEL")) {
+	if ((estr = getenv("DSKTOOLS_LOGLEVEL"))) {
 		int level = (int) strtol(estr, &eptr, 10);
 		if (eptr == estr + strlen(estr)) {
 			log_minlevel_set(level);
 		}
 	}
-	if (estr = getenv("DSKTOOLS_LOGFILE")) {
+	if ((estr = getenv("DSKTOOLS_LOGFILE"))) {
 		log_file_set(estr);
 	}
 }

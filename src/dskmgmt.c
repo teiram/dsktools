@@ -59,6 +59,7 @@ int info_dsk(const char *filename) {
 		printf("Sides\t\t: %6d\n", dsk->dsk_info->sides);
 		printf("Total size\t: %6d bytes\n", dsk_get_total_blocks(dsk) << 7);
 		printf("Used\t\t: %6d bytes\n", dsk_get_used_blocks(dsk) << 7);
+		return 0;
 
 	} else {
 		return -1;
@@ -119,14 +120,13 @@ int main(int argc, char *argv[]) {
 		{0, 0, 0, 0}
 	};
 	int c;
-	option_type option;
+	option_type option = INFO;
 	char *dsk_filename;
 	char *target_filename = NULL;
 	uint8_t target_user = 0;
 	char *output_filename = NULL;
 
 	do {
-		int this_option_optind = optind ? optind : 1;
 		int option_index = 0;
 		c = getopt_long(argc, argv, "lie:u:o:h",
 			long_options, &option_index);
