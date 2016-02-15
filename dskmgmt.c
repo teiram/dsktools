@@ -20,13 +20,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <string.h>
 #include "dsk.h"
+#include "log.h"
 
 typedef enum {
 	LIST,
-	INFO
+	INFO,
+	EXPORT
 } option_type;
 
 static int help_exit(const char *message, int exitcode) {
@@ -34,8 +37,9 @@ static int help_exit(const char *message, int exitcode) {
 		fprintf(stderr, "%s\n\n", message);
 	}
 	fprintf(stderr, "Usage: dskmgmt [options] file.dsk\n");
-	fprintf(stderr, " Options: -l | --list    shows directory\n");
-	fprintf(stderr, " Options: -i | --info    shows info\n");
+	fprintf(stderr, " Options: -l          | --list    shows directory\n");
+	fprintf(stderr, " Options: -i          | --info    shows info\n");
+	fprintf(stderr, " Options: -e filename | --export file from dsk\n");
 	fprintf(stderr, "          -h | --help    shows this help\n");
 	return exitcode;
 }
@@ -66,16 +70,22 @@ int list_dsk(const char *filename) {
 	if (dsk) {
 		dir_entry_type dir_entries[NUM_DIRENT];
 		int i;
+		char buffer[13];
 		for (i = 0; i < NUM_DIRENT; i++) {
 			dsk_get_dir_entry(dsk, &dir_entries[i], i);
+			LOG(LOG_DEBUG, "Entry for user %d, name %s, extent %d", 
+			    dir_entries[i].user,
+			    dir_entry_get_name(&dir_entries[i], buffer),
+			    dir_entries[i].extent_low);
 		}
 		for (i = 0; i < NUM_DIRENT; i++) {
 			dir_entry_type *dir_entry = &dir_entries[i];
+
 			if (!is_dir_entry_deleted(dir_entry) && 
 			    dir_entry->extent_low == 0) {
-				char name[13];
+
 				fprintf(stderr, "%s (user %d) %6d bytes\n", 
-					dir_entry_get_name(dir_entry, name),
+					dir_entry_get_name(dir_entry, buffer),
 					dir_entry->user,
 					dir_entry_get_size(dir_entries, i));
 			}
@@ -86,12 +96,13 @@ int list_dsk(const char *filename) {
 	}
 }
 
-int mgmtdsk(const char *filename, option_type option) {
-	switch (option) {
-	case LIST:
-		return list_dsk(filename);
-	case INFO:
-		return info_dsk(filename);
+int export_dsk(const char *dsk_file, const char *amsdos_file, 
+	       const char *dst_file, uint8_t user) {
+	dsk_type *dsk = dsk_new(dsk_file);
+	if (dsk) {
+		return dsk_dump_file(dsk, amsdos_file, dst_file, user);
+	} else {
+		return -1;
 	}
 }
 
@@ -100,15 +111,22 @@ int main(int argc, char *argv[]) {
 	static struct option long_options[] = {
 		{"list", 0, 0, 'l'},
 		{"info", 0, 0, 'i'},
+		{"export", 1, 0, 'e'},
+		{"user", 1, 0, 'u'},
+		{"output", 1, 0, 'o'},
 		{0, 0, 0, 0}
 	};
 	int c;
 	option_type option;
+	char *dsk_file;
+	char *target_file = NULL;
+	uint8_t target_user = 0;
+	char *output_file = NULL;
 
 	do {
 		int this_option_optind = optind ? optind : 1;
 		int option_index = 0;
-		c = getopt_long(argc, argv, "lih",
+		c = getopt_long(argc, argv, "lie:u:o:h",
 			long_options, &option_index);
 		switch(c) {
 		case 'h':
@@ -121,11 +139,34 @@ int main(int argc, char *argv[]) {
 		case 'i':
 			option = INFO;
 			break;
+		case 'e':
+			option = EXPORT;
+			target_file = optarg;
+			break;
+		case 'u':
+			target_user = atoi(optarg);
+			break;
+		case 'o':
+			output_file = optarg;
+			break;
 		}
 	} while (c != -1);
 
 	if (argc - optind != 1) {
 		exit(help_exit("Error: No dsk filename provided", 1));
+	} else {
+		dsk_file = argv[optind];
 	}
-	return mgmtdsk(argv[optind], option);
+
+	int result = 0;
+	switch (option) {
+	case LIST:
+		return list_dsk(dsk_file);
+	case INFO:
+		return info_dsk(dsk_file);
+	case EXPORT:
+		return export_dsk(dsk_file, target_file, output_file, 
+				  target_user);
+	}
+	return result;
 }

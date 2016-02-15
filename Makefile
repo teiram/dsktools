@@ -32,8 +32,11 @@ common.o: common.c
 dsk.o: dsk.c dsk.h
 	gcc -g -c dsk.c
 
-dskmgmt: dskmgmt.c dsk.o
-	gcc -g -o dskmgmt dskmgmt.c dsk.o
+log.o: log.c log.h
+	gcc -g -c log.c
+
+dskmgmt: dskmgmt.c dsk.o log.o
+	gcc -g -o dskmgmt dskmgmt.c dsk.o log.o
 
 # installation
 install:
