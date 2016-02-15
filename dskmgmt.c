@@ -96,11 +96,13 @@ int list_dsk(const char *filename) {
 	}
 }
 
-int export_dsk(const char *dsk_file, const char *amsdos_file, 
-	       const char *dst_file, uint8_t user) {
-	dsk_type *dsk = dsk_new(dsk_file);
+int export_dsk(const char *dsk_filename, const char *amsdos_filename, 
+	       const char *dst_filename, uint8_t user) {
+	dsk_type *dsk = dsk_new(dsk_filename);
 	if (dsk) {
-		return dsk_dump_file(dsk, amsdos_file, dst_file, user);
+		return dsk_dump_file(dsk, amsdos_filename, 
+				     dst_filename ? dst_filename : amsdos_filename,
+				     user);
 	} else {
 		return -1;
 	}
@@ -118,10 +120,10 @@ int main(int argc, char *argv[]) {
 	};
 	int c;
 	option_type option;
-	char *dsk_file;
-	char *target_file = NULL;
+	char *dsk_filename;
+	char *target_filename = NULL;
 	uint8_t target_user = 0;
-	char *output_file = NULL;
+	char *output_filename = NULL;
 
 	do {
 		int this_option_optind = optind ? optind : 1;
@@ -141,13 +143,13 @@ int main(int argc, char *argv[]) {
 			break;
 		case 'e':
 			option = EXPORT;
-			target_file = optarg;
+			target_filename = optarg;
 			break;
 		case 'u':
 			target_user = atoi(optarg);
 			break;
 		case 'o':
-			output_file = optarg;
+			output_filename = optarg;
 			break;
 		}
 	} while (c != -1);
@@ -155,18 +157,18 @@ int main(int argc, char *argv[]) {
 	if (argc - optind != 1) {
 		exit(help_exit("Error: No dsk filename provided", 1));
 	} else {
-		dsk_file = argv[optind];
+		dsk_filename = argv[optind];
 	}
 
 	int result = 0;
 	switch (option) {
 	case LIST:
-		return list_dsk(dsk_file);
+		return list_dsk(dsk_filename);
 	case INFO:
-		return info_dsk(dsk_file);
+		return info_dsk(dsk_filename);
 	case EXPORT:
-		return export_dsk(dsk_file, target_file, output_file, 
-				  target_user);
+		return export_dsk(dsk_filename, target_filename, 
+				  output_filename, target_user);
 	}
 	return result;
 }

@@ -19,6 +19,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <getopt.h>
 #include <stdint.h>
 #include <string.h>
@@ -26,6 +27,25 @@
 #include <sys/param.h>
 #include "dsk.h"
 #include "log.h"
+
+static void dsk_set_error(dsk_type *dsk, const char *fmt, ...) {
+	if (dsk) {
+		if (strlen(dsk->error)) {
+			LOG(LOG_INFO, "Overwriting existing error");
+		}
+		va_list ap;
+		va_start(ap, fmt);
+		vsnprintf(dsk->error, DSK_ERROR_SIZE, fmt, ap);
+	} else {
+		LOG(LOG_ERROR, "Attempt to set error on null dsk");
+	}
+}
+
+char *dsk_get_error(dsk_type *dsk) {
+	if (dsk) {
+		return dsk->error;
+	}
+}
 
 static int is_dsk_image(dsk_type *dsk) {
 	if (dsk && dsk->dsk_info) {
@@ -203,6 +223,9 @@ void dsk_delete(dsk_type *dsk) {
 		if (dsk->track_info) {
 			free(dsk->track_info);
 		}
+		if (dsk->error) {
+			free(dsk->error);
+		}
 		free(dsk);
 	}
 }
@@ -226,11 +249,12 @@ dsk_type *dsk_new(const char *filename) {
 				dsk->track_info = (track_info_type**) 
 					calloc(dsk->dsk_info->tracks,
 					       sizeof(track_info_type**));
+				dsk->error = (char*) calloc(1, DSK_ERROR_SIZE);
 				return dsk;
 			}
 		} else {
-			printf("Unable to read %d, was %d\n",
-			       sizeof(dsk_info_type), nread);
+			LOG(LOG_ERROR, "Unable to read %d, was %d\n",
+			    sizeof(dsk_info_type), nread);
 		}
 	}
 	if (fh != 0) {

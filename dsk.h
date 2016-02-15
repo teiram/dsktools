@@ -29,6 +29,8 @@
 #define SECTOR_SIZE 512
 #define AMSDOS_USER_DELETED 0xE5
 
+#define DSK_ERROR_SIZE 256
+
 #define BASE_SECTOR_IBM 0x01
 #define BASE_SECTOR_SYS 0x41
 #define BASE_SECTOR_DATA 0xC1
@@ -80,12 +82,14 @@ typedef struct {
 	uint8_t *image;
 	dsk_info_type *dsk_info;
 	track_info_type **track_info;
+	char *error;
 } dsk_type;
 
 dsk_type *dsk_new(const char *filename);
 void dsk_delete(dsk_type *dsk);
 uint32_t dsk_get_total_blocks(dsk_type *dsk);
 uint32_t dsk_get_used_blocks(dsk_type *dsk);
+char *dsk_get_error(dsk_type *dsk);
 track_info_type *dsk_get_track_info(dsk_type *dsk, 
 				    uint8_t track);
 
