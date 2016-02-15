@@ -1,8 +1,0 @@
-1.1.2002:
-read:
-0.02user 0.01system 0:24.57elapsed 0%CPU (0avgtext+0avgdata 0maxresident)k
-0inputs+0outputs (112major+66minor)pagefaults 0swaps
-write:
-0.01user 0.02system 0:24.23elapsed 0%CPU (0avgtext+0avgdata 0maxresident)k
-0inputs+0outputs (102major+14minor)pagefaults 0swaps
-
