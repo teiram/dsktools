@@ -19,7 +19,6 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#include "common.h"
 
 #include <unistd.h>
 #include <stdio.h>
@@ -32,7 +31,8 @@
 #include <sys/ioctl.h>
 #include <sys/time.h>
 #include <fcntl.h>
-
+#include "common.h"
+#include "log.h"
 #define MAX_RETRY 20
 
 /* notes:
@@ -44,14 +44,14 @@
 
 void format_track(int fd, int track, Trackinfo *trackinfo, unsigned char side) {
 
-	int i, err;
+	int err;
 	struct floppy_raw_cmd raw_cmd;
 	format_map_t data[20];		//FIXME
 	unsigned char mask = 0xFF;
 	Sectorinfo *sectorinfo;
 
 	sectorinfo = trackinfo->sectorinfo;
-	for (i=0; i<trackinfo->spt; i++) {
+	for (int i=0; i<trackinfo->spt; i++) {
 		//data[i].sector = 0xC1+i;
 		//data[i].size = 2;	/* 0=128, 1=256, 2=512,... */
 		data[i].sector = sectorinfo->sector;
@@ -82,11 +82,11 @@ void format_track(int fd, int track, Trackinfo *trackinfo, unsigned char side) {
 	raw_cmd.cmd[raw_cmd.cmd_count++] = trackinfo->fill;	/* filler */
 	err = ioctl(fd, FDRAWCMD, &raw_cmd);
 	if (err < 0) {
-		perror("Error formatting");
+		LOG(LOG_ERROR, "Error formatting");
 		exit(1);
 	}
 	if (raw_cmd.reply[0] & 0x40) {
-		fprintf(stderr, "Could not format track %i\n", track);
+		LOG(LOG_ERROR, "Could not format track %i", track);
 		exit(1);
 	}
 }
@@ -99,11 +99,9 @@ void format_track(int fd, int track, Trackinfo *trackinfo, unsigned char side) {
 
 //void write_sect(int fd, int track, unsigned char sector, unsigned char *data) {
 void write_sect(int fd, Trackinfo *trackinfo, Sectorinfo *sectorinfo,
-	unsigned char *data, unsigned char side) {
+		unsigned char *data, unsigned char side) {
 
-	int i, err;
 	struct floppy_raw_cmd raw_cmd;
-	//format_map_t data[9];
 	unsigned char mask = 0xFF;
 
 	init_raw_cmd(&raw_cmd);
@@ -115,13 +113,10 @@ void write_sect(int fd, Trackinfo *trackinfo, Sectorinfo *sectorinfo,
 	raw_cmd.length= (128<<(sectorinfo->bps)); /* Sectorsize */
 	raw_cmd.data  = data;
 
-	if (sectorinfo->unused1 & 0x040)
-	{
+	if (sectorinfo->unused1 & 0x040) {
 		/* "write deleted data" (totally untested!) */
 		raw_cmd.cmd[raw_cmd.cmd_count++] = FD_WRITE_DEL & mask;
-	}
-	else
-	{
+	} else {
 		/* "write data" */
 		raw_cmd.cmd[raw_cmd.cmd_count++] = FD_WRITE & mask;
 	}
@@ -136,73 +131,68 @@ void write_sect(int fd, Trackinfo *trackinfo, Sectorinfo *sectorinfo,
 	raw_cmd.cmd[raw_cmd.cmd_count++] = trackinfo->gap;	/* GPL */
 	raw_cmd.cmd[raw_cmd.cmd_count++] = 0xFF;		/* DTL */
 
-	char ok=0, retry=0;
+	char ok = 0, retry = 0;
 
 	do {
-		err = ioctl(fd, FDRAWCMD, &raw_cmd);
+		int err = ioctl(fd, FDRAWCMD, &raw_cmd);
 		if (err < 0) {
-			perror("Error writing");
+			LOG(LOG_ERROR, "Error writing");
 			exit(1);
 		}
 		if (raw_cmd.reply[0] & 0x40) {
 			retry++;
-			if (retry>MAX_RETRY) ok=1;
+			if (retry > MAX_RETRY) ok=1;
 			recalibrate(fd, 0); //Force the head to move again
 		}
-		else ok=1;
-	} while (ok==0);
+		else ok = 1;
+	} while (ok == 0);
 
-	if (retry>MAX_RETRY)
-		fprintf(stderr, "Could not write sector %0X\n",
-			sectorinfo->sector);
+	if (retry > MAX_RETRY) {
+		LOG(LOG_ERROR, "Could not write sector %0X",
+		    sectorinfo->sector);
+	}
 }
 
 void writedsk(char *filename, int drivenum, int side) {
 
 	/* Variable declarations */
-	int fd, tmp, err;
+	int fd;
 	char drive[16];
-	struct floppy_raw_cmd raw_cmd;
-	//char buffer[ 512 * 2 * 24 ];
-	//char buffer[ 512 * 9 ];
-	char buffer[ 9 * sizeof(format_map_t) ];
-	format_map_t *data;
-
 	Diskinfo diskinfo;
 	Trackinfo trackinfo;
-	Sectorinfo *sectorinfo, **sectorinfos;
+	Sectorinfo *sectorinfo;
 	unsigned char track[MAX_TRACKLEN], *sect;
 	int tracklen;
 	FILE *in;
-	int i, j, count;
+	int count;
 	char *magic_disk = MAGIC_DISK;
 	char *magic_edisk = MAGIC_EDISK;
 	char *magic_track = MAGIC_TRACK;
 	char flag_edisk = FALSE;	// indicates extended disk image format
 
 	/* initialization */
-	sprintf(drive, "/dev/fd%01d", drivenum);
+	snprintf(drive, 15, "/dev/fd%01d", drivenum);
 
 	/* open drive */
-	fd = open( drive, O_ACCMODE | O_NDELAY);
-	if ( fd < 0 ){
-		perror("Error opening floppy device");
+	fd = open(drive, O_ACCMODE | O_NDELAY);
+	if (fd < 0) {
+		LOG(LOG_ERROR, "Error opening floppy device");
 		exit(1);
 	}
 
 	/* open file */
 	in = fopen(filename, "r");
 	if (in == NULL) {
-		perror("Error opening image file");
+		LOG(LOG_ERROR, "Error opening image file");
 		exit(1);
 	}
 
-	init( fd, 0 );
+	init(fd, 0);
 
 	/* read disk info, detect extended image */
 	count = fread(&diskinfo, 1, sizeof(diskinfo), in);
 	if (count != sizeof(diskinfo)) {
-		myabort("Error reading Disk-Info: File to short\n");
+		myabort("Error reading Disk-Info: File too short\n");
 	}
 	if (strncmp(diskinfo.magic, magic_disk, strlen(magic_disk))) {
 		if (strncmp(diskinfo.magic, magic_edisk, strlen(magic_edisk))) {
@@ -213,23 +203,25 @@ void writedsk(char *filename, int drivenum, int side) {
 	printdiskinfo(stderr, &diskinfo);
 
 	/* Get tracklen for normal disk images */
-	tracklen = (diskinfo.tracklen[0] + diskinfo.tracklen[1]*256) - 0x100;
+	tracklen = (diskinfo.tracklen[0] + diskinfo.tracklen[1] * 256) - 0x100;
 
-	/*fprintf(stderr, "writing Track: ");*/
-	for (i=0; i<diskinfo.tracks * diskinfo.heads; i++) {
+
+	for (int i = 0; i < diskinfo.tracks * diskinfo.heads; i++) {
 		/* read in track */
-		/*fprintf(stderr, "%2.2i ",i);
-		fflush(stderr);*/
-		if (flag_edisk) tracklen = diskinfo.tracklenhigh[i]*256 - 0x100;
+		LOG(LOG_DEBUG, "Writing Track: %2.2i", i);
+
+		if (flag_edisk) {
+			tracklen = diskinfo.tracklenhigh[i]*256 - 0x100;
+		}
 		if (tracklen > MAX_TRACKLEN) {
-			myabort("Error: Track to long.\n");
+			myabort("Error: Track too long.\n");
 		}
 
 		/* read trackinfo */
 		memset(&trackinfo, 0, sizeof(trackinfo));
 		count = fread(&trackinfo, 1, sizeof(trackinfo), in);
 		if (count != sizeof(trackinfo)) {
-			myabort("Error reading Track-Info: File to short\n");
+			myabort("Error reading Track-Info: File too short\n");
 		}
 		if (strncmp(trackinfo.magic, magic_track, strlen(magic_track)))
 			myabort("Error reading Track-Info: Invalid Track-Info\n");
@@ -241,8 +233,9 @@ void writedsk(char *filename, int drivenum, int side) {
 
 		/* read track */
 		count = fread(track, 1, tracklen, in);
-		if (count != tracklen)
-			myabort("Error reading Track: File to short\n");
+		if (count != tracklen) {
+			myabort("Error reading Track: File too short\n");
+		}
 
 		/* format track */
 		format_track(fd, i/diskinfo.heads, &trackinfo, side);
@@ -251,16 +244,15 @@ void writedsk(char *filename, int drivenum, int side) {
 		sect = track;
 		sectorinfo = trackinfo.sectorinfo;
 		fprintf(stderr, " [");
-		for (j=0; j<trackinfo.spt; j++) {
+		for (int j=0; j<trackinfo.spt; j++) {
 			fprintf(stderr, "%0X ", sectorinfo->sector);
 			write_sect(fd, &trackinfo, sectorinfo, sect, side);
 			sectorinfo++;
-			sect += (128<<trackinfo.bps);
+			sect += 128 << trackinfo.bps;
 		}
 		fprintf(stderr, "]\n");
 	}
 	fprintf(stderr,"\n");
-
 }
 
 int help_exit(const char *message, int exitcode) {
@@ -287,28 +279,26 @@ int main(int argc, char **argv) {
 	int side = 0;
 
 	do {
-		int this_option_optind = optind ? optind : 1;
 		int option_index = 0;
 		c = getopt_long(argc, argv, "d:s:h",
-			long_options, &option_index);
+				long_options, &option_index);
 		switch(c) {
-			case 'h':
-			case '?':
-				exit(help_exit(0, 0));
-				break;
-			case 'd':
-				drive = atoi(optarg);
-				break;
-			case 's':
-				side = atoi(optarg);
-				break;
+		case 'h':
+		case '?':
+			exit(help_exit(0, 0));
+			break;
+		case 'd':
+			drive = atoi(optarg);
+			break;
+		case 's':
+			side = atoi(optarg);
+			break;
 		}
 	} while (c != -1);
-
+	
 	if (argc - optind != 1) {
 		exit(help_exit("Error: No dsk source file provided", 1));
 	}
 	writedsk(argv[optind], drive, side);
 	return 0;
-
 }

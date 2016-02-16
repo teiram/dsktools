@@ -19,8 +19,6 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#include "common.h"
-
 #include <unistd.h>
 #include <getopt.h>
 #include <stdio.h>
@@ -32,33 +30,32 @@
 #include <sys/time.h>
 #include <fcntl.h>
 #include <time.h>
+#include <errno.h>
+
+#include "common.h"
+#include "log.h"
 
 void rotateleft_sectorids(Trackinfo *trackinfo, int pos) {
 
 	Sectorinfo sectorinfo[29];
-	int i, spt;
+	memcpy(sectorinfo, trackinfo->sectorinfo, sizeof(Sectorinfo) * 30);
 
-	memcpy( sectorinfo, trackinfo->sectorinfo, sizeof( Sectorinfo ) * 30 );
-
-	spt = trackinfo->spt;
-	for( i=0; i<spt; i++ ) {
-		memcpy( &trackinfo->sectorinfo[i],
-			&sectorinfo[(i+pos)%spt], sizeof( Sectorinfo ) );
+	int spt = trackinfo->spt;
+	for (int i = 0; i < spt; i++) {
+		memcpy(&trackinfo->sectorinfo[i],
+		       &sectorinfo[(i+pos)%spt], sizeof(Sectorinfo));
 	}
 
 }
 
 void rotate_sectorids(Trackinfo *trackinfo) {
-
-	int i, low, pos, sector;
-
-	low = 0xFF;
-	pos = 0;
+	int low = 0xFF;
+	int pos = 0;
 
 	/* Find lowest sector number */
-	for( i=0; i<trackinfo->spt; i++ ) {
-		sector = trackinfo->sectorinfo[i].sector;
-		if ( sector < low ) {
+	for (int i = 0; i < trackinfo->spt; i++) {
+		int sector = trackinfo->sectorinfo[i].sector;
+		if (sector < low) {
 			low = sector;
 			pos = i;
 		}
@@ -66,12 +63,10 @@ void rotate_sectorids(Trackinfo *trackinfo) {
 
 	/* Rotate sectorids in trackinfo left by pos positions */
 	rotateleft_sectorids(trackinfo, pos);
-
 }
 
-void	seek(int fd, int drive, int track)
-{
-	int i, err;
+void seek(int fd, int drive, int track) {
+
 	struct floppy_raw_cmd raw_cmd;
 	unsigned char mask = 0xFF;
 
@@ -85,10 +80,9 @@ void	seek(int fd, int drive, int track)
 	raw_cmd.cmd[raw_cmd.cmd_count++] = drive;
 	raw_cmd.cmd[raw_cmd.cmd_count++] = track;
 
-	err = ioctl(fd, FDRAWCMD, &raw_cmd);
-
-	if (err<0)
-		printf("error");
+	if (ioctl(fd, FDRAWCMD, &raw_cmd) < 0) {
+		LOG(LOG_ERROR, "Seek ioctl error: %s", strerror(errno));
+	}
 }
 
 #define FD_READTRACK (2|0x040)
@@ -99,7 +93,7 @@ void	seek(int fd, int drive, int track)
 char buf[8*1024];
 int read_ids(int fd, Trackinfo *trackinfo, int head, int drive) {
 
-	int i, err;
+	int err;
 	struct floppy_raw_cmd cmds[32];
 	struct floppy_raw_cmd *cur_cmd;
 
@@ -122,18 +116,15 @@ int read_ids(int fd, Trackinfo *trackinfo, int head, int drive) {
 			
 	err = ioctl(fd, FDRAWCMD, cmds);
 
-	if ((cur_cmd->reply[0] & 0x0c0)==0x040) 
-	{
+	if ((cur_cmd->reply[0] & 0x0c0)==0x040) {
 		/* check for specific command response which indicates
-		a unformatted track */
-		if (
-			(cur_cmd->reply[1]==1) && /* ST1 */
-			(cur_cmd->reply[2]==0) && /* ST2 */
-			(cur_cmd->reply[4]==0) && /* H */
-			(cur_cmd->reply[5]==1) && /* R */
-			(cur_cmd->reply[6]==0) /* N */
-			)
-		{
+		   a unformatted track */
+		if ((cur_cmd->reply[1] == 1) && /* ST1 */
+		    (cur_cmd->reply[2] == 0) && /* ST2 */
+		    (cur_cmd->reply[4] == 0) && /* H */
+		    (cur_cmd->reply[5] == 1) && /* R */
+		    (cur_cmd->reply[6] == 0) /* N */
+		    ) {
 			return 0;
 		}
 
@@ -226,15 +217,13 @@ int read_ids(int fd, Trackinfo *trackinfo, int head, int drive) {
 #endif
 
 	/* initialise the read id command list */
-	for (i=1; i<32; i++)
-	{
+	for (int i = 1; i < 32; i++) {
 		cur_cmd = &cmds[i];
 
 		/* initialise this cmd */
 		init_raw_cmd(cur_cmd);
 		cur_cmd->flags = /*FD_RAW_READ |*/ FD_RAW_INTR;
-		if (i!=(32-1))
-		{
+		if (i != (32 - 1)) {
 			cur_cmd->flags |= FD_RAW_MORE;
 		}
 		cur_cmd->track = trackinfo->track;
@@ -246,10 +235,10 @@ int read_ids(int fd, Trackinfo *trackinfo, int head, int drive) {
 	
 	err = ioctl(fd, FDRAWCMD, cmds);
 
-		if (err < 0) {
-		  perror("Error reading id");
-		  exit(1);
-		}
+	if (err < 0) {
+		perror("Error reading id");
+		exit(1);
+	}
 
 /*	cur_cmd = cmds;
 	for (i=0; i<7; i++)
@@ -259,13 +248,12 @@ int read_ids(int fd, Trackinfo *trackinfo, int head, int drive) {
 */	
 
 	trackinfo->spt = NSECTS;
-	for (i=1; i<NSECTS+1; i++)
-	{
+	for (int i = 1; i < NSECTS +1; i++) {
 		cur_cmd = &cmds[i];
-		trackinfo->sectorinfo[i-1].track = cur_cmd->reply[3];
-		trackinfo->sectorinfo[i-1].head = cur_cmd->reply[4];
-		trackinfo->sectorinfo[i-1].sector = cur_cmd->reply[5];
-		trackinfo->sectorinfo[i-1].bps = cur_cmd->reply[6];
+		trackinfo->sectorinfo[i - 1].track = cur_cmd->reply[3];
+		trackinfo->sectorinfo[i - 1].head = cur_cmd->reply[4];
+		trackinfo->sectorinfo[i - 1].sector = cur_cmd->reply[5];
+		trackinfo->sectorinfo[i - 1].bps = cur_cmd->reply[6];
 	}
 
 	
@@ -279,9 +267,9 @@ int read_ids(int fd, Trackinfo *trackinfo, int head, int drive) {
 /* standard FD_READ causes problems and is slower! */
 
 void read_sect(int fd, Trackinfo *trackinfo, Sectorinfo *sectorinfo,
-	unsigned char *data, int track, int head, int drive) {
+	       unsigned char *data, int track, int head, int drive) {
 
-	int i, err, retry=0, ok=0;
+	int err, retry=0, ok=0;
 	struct floppy_raw_cmd raw_cmd;
 	unsigned char mask = 0xFF;
 
@@ -311,33 +299,32 @@ void read_sect(int fd, Trackinfo *trackinfo, Sectorinfo *sectorinfo,
 			exit(1);
 		}
 
-		if (((raw_cmd.reply[0] &0x0f8)==0x040) && (raw_cmd.reply[1]==0x080)) {
+		if (((raw_cmd.reply[0] & 0x0f8) == 0x040) && 
+		    (raw_cmd.reply[1] == 0x080)) {
 			/* end of cylinder */
 			return;
 		}
 
 		if (raw_cmd.reply[0] & 0x40) {
-			recalibrate(fd,drive);
+			recalibrate(fd, drive);
 			retry++;
-			fprintf(stderr,"TRY %d \n",retry);
+			fprintf(stderr,"TRY %d \n", retry);
 		}
 		else ok = 1; // Read ok, go to next
-	} while((retry<10) && (ok == 0));
+	} while ((retry < 10) && (ok == 0));
 
-	if(!ok) {
+	if (!ok) {
 		printf("\n%02x %02x %02x\r\n",raw_cmd.reply[0],raw_cmd.reply[1], raw_cmd.reply[2]);
-		fprintf(stderr, "Could not read sector %0X\n",
-			sectorinfo->sector);
+		LOG(LOG_ERROR, "Could not read sector %0X\n",
+		    sectorinfo->sector);
 	}
 }
 
 void init_trackinfo( Trackinfo *trackinfo, int track, int side ) {
 
-	int i;
-
 	memset(trackinfo, 0, sizeof(*trackinfo));
 
-	strncpy( trackinfo->magic, MAGIC_TRACK, sizeof( trackinfo->magic ) );
+	strncpy(trackinfo->magic, MAGIC_TRACK, sizeof(trackinfo->magic));
 	//unsigned char unused1[0x03];
 	trackinfo->track = track;
 	trackinfo->head = side;
@@ -357,7 +344,7 @@ void init_diskinfo( Diskinfo *diskinfo, int tracks, int heads, int tracklen ) {
 
 	memset(diskinfo, 0, sizeof(*diskinfo));
 
-	strncpy( diskinfo->magic, MAGIC_DISK_WRITE, sizeof( diskinfo->magic ) );
+	strncpy(diskinfo->magic, MAGIC_DISK_WRITE, sizeof(diskinfo->magic));
 	diskinfo->tracks = tracks;
 	diskinfo->heads = heads;
 	diskinfo->tracklen[0] = (char) tracklen;
@@ -374,135 +361,124 @@ void timestamp_diskinfo( Diskinfo *diskinfo ) {
 	t = time(NULL);
 	ltime = localtime(&t);
 	/* FIXME: Can the formatting be messed up by locale settings? */
-	strftime( diskinfo->magic+14, 16, "%d %b %g %H:%M", ltime );
+	strftime(diskinfo->magic+14, 16, "%d %b %g %H:%M", ltime);
 
 }
 
-void readdsk(char *filename, int drv, int startside, int nsides, int 
-ntracks) {
+void readdsk(char *filename, int drv, int startside, 
+	     int nsides, int ntracks) {
 
 	/* Variable declarations */
-	int fd, tmp, err;
+	int fd;
 	char drive[32];
-	struct floppy_raw_cmd raw_cmd;
-
 	Diskinfo diskinfo;
 	Trackinfo trackinfo[MAX_TRACKS*MAX_SIDES];
-	Sectorinfo *sectorinfo, **sectorinfos;
+	Sectorinfo *sectorinfo;
 	unsigned char data[TRACKLEN*TRACKS], *sect, *track;
 	int tracklen;
 	FILE *file;
-	int i, j, count;
-	char *magic_disk = MAGIC_DISK;
-	char *magic_edisk = MAGIC_EDISK;
-	char *magic_track = MAGIC_TRACK;
-	char flag_edisk = FALSE;	// indicates extended disk image format
+	int count;
 
 	/* initialization */
 	sprintf(drive,"/dev/fd%01d",drv);
 
 	/* open drive */
-	fd = open( drive, O_ACCMODE | O_NDELAY);
-	if ( fd < 0 ){
-		perror("Error opening floppy device");
+	fd = open(drive, O_ACCMODE | O_NDELAY);
+	if (fd < 0) {
+		LOG(LOG_ERROR, "Error opening floppy device: %s",
+		    strerror(errno));
 		exit(1);
 	}
 
-	printf("%s\n",filename);
+	LOG(LOG_DEBUG, "Reading DSK to %s", filename);
 
 	/* open file */
 	file = fopen(filename, "w");
 	if (file == NULL) {
-		perror("Error opening image file");
+		LOG(LOG_ERROR, "Error opening image file: %s",
+		    strerror(errno));
 		exit(1);
 	}
 
 	init( fd, drv);
 
 	sect = data;
-	for ( i=0; i<ntracks; i++ ) {
-		int k;
-		for (k=0; k<nsides; k++) {
+	for (int i=0; i < ntracks; i++) {
+		for (int k = 0; k < nsides; k++) {
 			int spt;
 			int side;
 			int ntrk;
 
-			ntrk = (i*nsides)+k;
-			side = (startside+k)%MAX_SIDES;
+			ntrk = (i * nsides) + k;
+			side = (startside + k) % MAX_SIDES;
 
-			init_trackinfo( &trackinfo[ntrk], i,k );
+			init_trackinfo(&trackinfo[ntrk], i, k);
 			printtrackinfo(stderr, &trackinfo[ntrk]);
 			fprintf(stderr, "\n");
 			fprintf(stderr, " [");
 
-			seek(fd, drv,i);
+			seek(fd, drv, i);
 			spt = read_ids(fd, &trackinfo[ntrk],side,drv);
 			/* Slow version: Read sectors in order */
 		
 			trackinfo->spt = spt;
-			for ( j=0; j<spt; j++ ) {
+			for (int j = 0; j < spt; j++) {
 				sectorinfo = &trackinfo[ntrk].sectorinfo[j];
 				fprintf(stderr, "%02X ", sectorinfo->sector);
-				read_sect(fd, &trackinfo[ntrk],sectorinfo,sect, i,side,drv);
-				sect += (128<<trackinfo[ntrk].bps);
+				read_sect(fd, &trackinfo[ntrk], sectorinfo,
+					  sect, i, side, drv);
+				sect += (128 << trackinfo[ntrk].bps);
 			}
 #if 0
-		trackinfo->spt = spt;
-		/* Fast version: Read sectors interleaved in two passes */
-		for ( j=0; j<spt; j+=2 ) {
-			sectorinfo = &trackinfo[i].sectorinfo[j];
-			fprintf(stderr, "%02X ", sectorinfo->sector);
-			read_sect(fd, &trackinfo[i], sectorinfo, sect,side,drv);
-			sect += 0x400;
-		}
-		sect = sect - ( 0x400 * j/2 ) + 0x200;
-		for ( j=1; j<spt; j+=2 ) {
-			sectorinfo = &trackinfo[i].sectorinfo[j];
-			fprintf(stderr, "%02X ", sectorinfo->sector);
-			read_sect(fd, &trackinfo[i], sectorinfo, sect,side,drv);
-			sect += 0x400;
-		}
+			trackinfo->spt = spt;
+			/* Fast version: Read sectors interleaved in two passes */
+			for (int j = 0; j < spt; j += 2 ) {
+				sectorinfo = &trackinfo[i].sectorinfo[j];
+				fprintf(stderr, "%02X ", sectorinfo->sector);
+				read_sect(fd, &trackinfo[i], sectorinfo, 
+					  sect, side, drv);
+				sect += 0x400;
+			}
+			sect = sect - (0x400 * j / 2) + 0x200;
+			for (int j = 1; j < spt; j += 2) {
+				sectorinfo = &trackinfo[i].sectorinfo[j];
+				fprintf(stderr, "%02X ", sectorinfo->sector);
+				read_sect(fd, &trackinfo[i], sectorinfo, 
+					  sect, side, drv);
+				sect += 0x400;
+			}
 #endif
 			fprintf(stderr, "]\n");
 		}
 	}
 
-	init_diskinfo( &diskinfo, ntracks, nsides, TRACKLEN_INFO );
-	timestamp_diskinfo( &diskinfo );
+	init_diskinfo(&diskinfo, ntracks, nsides, TRACKLEN_INFO);
+	timestamp_diskinfo(&diskinfo);
 	printdiskinfo(stderr, &diskinfo);
 
 	count = fwrite(&diskinfo, 1, sizeof(diskinfo), file);
 	if (count != sizeof(diskinfo)) {
-		myabort("Error writing Disk-Info: File to short\n");
+		myabort("Error writing Disk-Info: File too short\n");
 	}
 
 	track = data;
 	tracklen = TRACKLEN;
-	for (i=0; i<diskinfo.tracks; i++) 
-	{
-		int j;
-		for (j=0; j<diskinfo.heads; j++)
-		{
-			int ninfo = (i*diskinfo.heads)+j;
-
+	for (int i=0; i < diskinfo.tracks; i++)	{
+		for (int j=0; j<diskinfo.heads; j++) {
+			int ninfo = (i * diskinfo.heads) + j;
 			count = fwrite(&trackinfo[ninfo], 1, 
-sizeof(trackinfo[ninfo]), file);
-			if (count != sizeof(trackinfo[ninfo])) 
-			{
-				myabort("Error writing Track-Info: File to short\n");
+				       sizeof(trackinfo[ninfo]), file);
+			if (count != sizeof(trackinfo[ninfo])) {
+				myabort("Error writing Track-Info: File too short\n");
 			}
 			count = fwrite(track, 1, tracklen, file);
-			if (count != tracklen) 
-			{
-				myabort("Error writing Track: File to short\n");
+			if (count != tracklen) {
+				myabort("Error writing Track: File too short\n");
 			}
 		}
-	
 		track += tracklen;
 	}
-
 	fclose(file);
-
 }
 
 void help_exit(int exitcode) {
@@ -536,27 +512,26 @@ int main(int argc, char **argv) {
 	char tracks = 40;
 
 	do {
-		int this_option_optind = optind ? optind : 1;
 		int option_index = 0;
 		c = getopt_long(argc, argv, "d:s:S:t:h",
-			long_options, &option_index);
+				long_options, &option_index);
 		switch(c) {
-			case 'h':
-			case '?':
-				help_exit(0);
-				break;
-			case 'd':
-				drive_string = optarg;
-				break;
-			case 's':
-				side_string = optarg;
-				break;
-			case 'S':
-				sides_string = optarg;
-				break;
-			case 't':
-				tracks_string = optarg;
-				break;
+		case 'h':
+		case '?':
+			help_exit(0);
+			break;
+		case 'd':
+			drive_string = optarg;
+			break;
+		case 's':
+			side_string = optarg;
+			break;
+		case 'S':
+			sides_string = optarg;
+			break;
+		case 't':
+			tracks_string = optarg;
+			break;
 		}
 	} while (c != -1);
 
@@ -569,7 +544,7 @@ int main(int argc, char **argv) {
 	if (sides_string != NULL) sides = atoi(sides_string);
 	if (tracks_string != NULL) tracks = atoi(tracks_string);
 
-	readdsk( argv[optind], drive, side, sides, tracks );
+	readdsk(argv[optind], drive, side, sides, tracks);
 
 	return 0;
 

@@ -19,7 +19,7 @@
  */
 
 #include "common.h"
-
+#include <time.h>
 
 void myabort(char *s)
 {
@@ -213,9 +213,10 @@ void recalibrate(int fd, int drive) {
 
 void init(int fd, int drive) {
 
+	struct timespec delay = {0, 100000}; /* 100ms */
 	reset( fd );
-	usleep( 100 );
+	nanosleep(&delay, NULL);
 	recalibrate( fd,drive);
-	usleep( 100 );
+	nanosleep(&delay, NULL);
 }
 
