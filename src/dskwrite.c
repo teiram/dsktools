@@ -46,7 +46,7 @@ void format_track(int fd, int track, Trackinfo *trackinfo, unsigned char side) {
 
 	int err;
 	struct floppy_raw_cmd raw_cmd;
-	format_map_t data[20];		//FIXME
+	format_map_t data[trackinfo->spt];
 	unsigned char mask = 0xFF;
 	Sectorinfo *sectorinfo;
 
