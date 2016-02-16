@@ -23,6 +23,8 @@
 #include <stdint.h>
 
 #define DSK_HEADER "MV - CPC"
+#define EDSK_HEADER "EXTENDED CPC DSK File"
+
 #define NUM_DIRENT 64
 #define AMSDOS_NAME_LEN 8
 #define AMSDOS_EXT_LEN 3
@@ -41,7 +43,7 @@ typedef struct {
 	uint8_t tracks;
 	uint8_t sides;
 	uint8_t track_size[2];
-	uint8_t padding[204];
+	uint8_t track_size_high[204]; /* Only for EDSK */
 } dsk_info_type;
 
 typedef struct {
@@ -84,7 +86,7 @@ typedef struct {
 	track_info_type **track_info;
 	char *error;
 } dsk_type;
-
+ 
 dsk_type *dsk_new(const char *filename);
 void dsk_delete(dsk_type *dsk);
 uint32_t dsk_get_total_blocks(dsk_type *dsk);

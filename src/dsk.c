@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <getopt.h>
 #include <stdint.h>
 #include <string.h>
@@ -51,14 +52,71 @@ char *dsk_get_error(dsk_type *dsk) {
 	}
 }
 
-static int is_dsk_image(dsk_type *dsk) {
+static bool is_dsk_image(dsk_type *dsk) {
 	if (dsk && dsk->dsk_info) {
 		return !strncmp(dsk->dsk_info->magic, 
-				DSK_HEADER, 8);
+				DSK_HEADER, 8) ? true: false;
 	} else {
-		char header[9];
-		sprintf("%s", header, dsk->dsk_info->magic);
-		LOG(LOG_DEBUG, "Image doesn't have the expected header start. Expected %s, actual %s", DSK_HEADER, header);
+		char header[35];
+		snprintf(header, 34, "%s", dsk->dsk_info->magic);
+		LOG(LOG_DEBUG, "Image header doesn't match the expected DSK header. Expected: %s, header: %s", DSK_HEADER, header);
+		return false;
+	}
+}
+
+static bool is_edsk_image(dsk_type *dsk) {
+	if (dsk && dsk->dsk_info) {
+		return !strncmp(dsk->dsk_info->magic,
+				EDSK_HEADER, 21) ? true : false;
+	} else {
+		char header[35];
+		snprintf(header, 34, "%s", dsk->dsk_info->magic);
+		LOG(LOG_DEBUG, "Image header doesn't match the expected EDSK header. Expected %s, header %s", EDSK_HEADER, header);
+		return false;
+	}
+}
+
+static uint32_t get_track_size(dsk_type *dsk, uint8_t track) {
+	if (is_dsk_image(dsk)) {
+		return dsk->dsk_info->track_size[0] +
+			(dsk->dsk_info->track_size[1] << 8);
+	} else if (is_edsk_image(dsk)) {
+		return dsk->dsk_info->track_size_high[track] << 8;
+	} else {
+		LOG(LOG_ERROR, "Unsupported image type");
+		return 0;
+	}
+}
+
+static uint32_t get_image_size(dsk_type *dsk) {
+	if (is_dsk_image(dsk)) {
+		return dsk->dsk_info->tracks * 
+			get_track_size(dsk, 0);
+	} else if (is_edsk_image(dsk)) {
+		uint32_t size = 0;
+		uint32_t track_count = dsk->dsk_info->tracks * 
+			dsk->dsk_info->sides;
+		for (int i = 0; i < track_count; i++) {
+			size += get_track_size(dsk, i);
+		}
+		return size;
+	} else {
+		dsk_set_error(dsk, "Getting image size from unsupported image");
+		return 0;
+	}
+}
+
+static uint32_t get_track_offset(dsk_type *dsk, uint8_t track) {
+	if (is_dsk_image(dsk)) {
+		return get_track_size(dsk, 0) * track;
+	} else if (is_edsk_image(dsk)) {
+		uint32_t offset = 0;
+		for (int i = 0; i < track; i++) {
+			offset += get_track_size(dsk, i);
+		}
+		return offset;
+	} else {
+		dsk_set_error(dsk, "Getting track offset from unsupported image");
 		return 0;
 	}
 }
@@ -118,10 +176,6 @@ static uint32_t get_sector_offset_in_track(track_info_type *track, uint8_t secto
 	return 0;
 }
 
-static uint32_t get_track_size(dsk_type *dsk) {
-	return dsk->dsk_info->track_size[0] +
-		(dsk->dsk_info->track_size[1] << 8);
-}
 
 static uint32_t get_block_offset(dsk_type *dsk,
 				 uint8_t sector) {
@@ -135,8 +189,9 @@ static uint32_t get_block_offset(dsk_type *dsk,
 	LOG(LOG_DEBUG, "Calculated track_index %d, sector_id %02x",
 	    track_index, sector_id);
 	uint32_t offset = 0;
-	uint32_t track_size = get_track_size(dsk);
-	offset += track_size * track_index;
+	for (int i = 0; i < track_index; i++) {
+		offset += get_track_size(dsk, i);
+	}
 	LOG(LOG_DEBUG, "Track offset %u", offset);
 	track_info_type *track = dsk_get_track_info(dsk, track_index);
 	if (track) {
@@ -155,7 +210,6 @@ static uint32_t get_sector_offset(dsk_type *dsk,
 	LOG(LOG_DEBUG, "get_sector_offset(track:%u, side: %u, sector: %02x)",
 	    track_id, side, sector_id);
 	uint32_t offset = 0;
-	uint32_t track_size = get_track_size(dsk);
 	for (int i = 0; i < dsk->dsk_info->tracks; i++) {
 		track_info_type *track = dsk_get_track_info(dsk, i);
 		LOG(LOG_DEBUG, "Searching in track %u", track->track_number);
@@ -164,7 +218,7 @@ static uint32_t get_sector_offset(dsk_type *dsk,
 			offset += get_sector_offset_in_track(track, sector_id);
 			break;
 		} else {
-			offset += track_size;
+			offset += get_track_size(dsk, i);
 		}
 		LOG(LOG_DEBUG, " +current offset %04x", offset);
 	}
@@ -205,7 +259,7 @@ track_info_type *dsk_get_track_info(dsk_type *dsk,
 		if (track < dsk->dsk_info->tracks) {
 			if (!dsk->track_info[track]) {
 				dsk->track_info[track] = (track_info_type*) 
-					(dsk->image + (get_track_size(dsk) * track));
+					(dsk->image + (get_track_offset(dsk, track)));
 			}
 			return dsk->track_info[track];
 		} else {
@@ -240,10 +294,8 @@ dsk_type *dsk_new(const char *filename) {
 		dsk->dsk_info = (dsk_info_type *) malloc(sizeof(dsk_info_type));
 		int nread = fread(dsk->dsk_info, 
 				  sizeof(dsk_info_type), 1, fh);
-		if (nread == 1 &&
-		    is_dsk_image(dsk)) {
-			int disk_size = dsk->dsk_info->tracks *
-				get_track_size(dsk);
+		if (nread == 1) {
+			uint32_t disk_size = get_image_size(dsk);
 			dsk->image = (uint8_t*) malloc(disk_size);
 			nread = fread(dsk->image,
 				      disk_size, 1, fh);
