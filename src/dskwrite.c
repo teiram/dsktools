@@ -31,8 +31,10 @@
 #include <sys/ioctl.h>
 #include <sys/time.h>
 #include <fcntl.h>
+#include <errno.h>
 #include "common.h"
 #include "log.h"
+
 #define MAX_RETRY 20
 
 /* notes:
@@ -82,7 +84,7 @@ void format_track(int fd, int track, Trackinfo *trackinfo, unsigned char side) {
 	raw_cmd.cmd[raw_cmd.cmd_count++] = trackinfo->fill;	/* filler */
 	err = ioctl(fd, FDRAWCMD, &raw_cmd);
 	if (err < 0) {
-		LOG(LOG_ERROR, "Error formatting");
+		LOG(LOG_ERROR, "Error formatting: %s", strerror(errno));
 		exit(1);
 	}
 	if (raw_cmd.reply[0] & 0x40) {
@@ -136,7 +138,7 @@ void write_sect(int fd, Trackinfo *trackinfo, Sectorinfo *sectorinfo,
 	do {
 		int err = ioctl(fd, FDRAWCMD, &raw_cmd);
 		if (err < 0) {
-			LOG(LOG_ERROR, "Error writing");
+			LOG(LOG_ERROR, "Error writing: %s", strerror(errno));
 			exit(1);
 		}
 		if (raw_cmd.reply[0] & 0x40) {
@@ -176,7 +178,8 @@ void writedsk(char *filename, int drivenum, int side) {
 	/* open drive */
 	fd = open(drive, O_ACCMODE | O_NDELAY);
 	if (fd < 0) {
-		LOG(LOG_ERROR, "Error opening floppy device");
+		LOG(LOG_ERROR, "Error opening floppy device: %s", 
+		    strerror(errno));
 		exit(1);
 	}
 

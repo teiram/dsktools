@@ -236,7 +236,7 @@ int read_ids(int fd, Trackinfo *trackinfo, int head, int drive) {
 	err = ioctl(fd, FDRAWCMD, cmds);
 
 	if (err < 0) {
-		perror("Error reading id");
+		LOG(LOG_ERROR, "Error reading id: %s", strerror(errno));
 		exit(1);
 	}
 
@@ -295,7 +295,7 @@ void read_sect(int fd, Trackinfo *trackinfo, Sectorinfo *sectorinfo,
 	
 		err = ioctl(fd, FDRAWCMD, &raw_cmd);
 		if (err < 0) {
-			perror("Error reading");
+			LOG(LOG_ERROR, "Error reading: %s", strerror(errno));
 			exit(1);
 		}
 
