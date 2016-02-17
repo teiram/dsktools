@@ -230,6 +230,10 @@ static uint32_t get_sector_offset(dsk_type *dsk,
 	return offset;
 }
 
+static bool is_track_in_offset(dsk_type *dsk, uint32_t offset) {
+	return !strncmp((char*) dsk->image + offset, DSK_TRACK_HEADER, 13);
+}
+
 uint8_t is_dir_entry_deleted(dir_entry_type *dir_entry) {
 	return dir_entry->user == AMSDOS_USER_DELETED ? 1 : 0;
 }
@@ -256,6 +260,7 @@ char *dir_entry_get_name(dir_entry_type *dir_entry, char *buffer) {
 	return buffer;
 }
 
+/* Probably broken for EDSK */
 uint32_t dir_entry_get_size(dir_entry_type* dir_entries, int index) {
 	int blocks = 0;
 	int file_user = dir_entries[index].user;
@@ -274,8 +279,18 @@ track_info_type *dsk_get_track_info(dsk_type *dsk,
 	if (dsk && dsk->image) {
 		if (track < dsk->dsk_info->tracks) {
 			if (!dsk->track_info[track]) {
-				dsk->track_info[track] = (track_info_type*) 
-					(dsk->image + (get_track_offset(dsk, track)));
+				uint32_t offset = get_track_offset(dsk, track);
+				if (is_track_in_offset(dsk, offset)) {
+					dsk->track_info[track] = (track_info_type*) (dsk->image + offset);
+				} else {
+					LOG(LOG_ERROR, 
+					    "Invalid track offset %04x", 
+					    offset);
+					dsk_set_error(dsk, 
+						      "Invalid track offset %04x", 
+						      offset);
+					return NULL;
+				}
 			}
 			return dsk->track_info[track];
 		} else {

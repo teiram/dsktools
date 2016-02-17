@@ -24,7 +24,7 @@
 
 #define DSK_HEADER "MV - CPC"
 #define EDSK_HEADER "EXTENDED CPC DSK File"
-
+#define DSK_TRACK_HEADER "Track-Info\r\n"
 #define NUM_DIRENT 64
 #define AMSDOS_NAME_LEN 8
 #define AMSDOS_EXT_LEN 3
