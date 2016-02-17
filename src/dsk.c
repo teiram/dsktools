@@ -246,7 +246,7 @@ char *dir_entry_get_basename(dir_entry_type *dir_entry, char *buffer) {
 
 char *dir_entry_get_extension(dir_entry_type *dir_entry, char *buffer) {
 	memcpy(buffer, dir_entry->extension, AMSDOS_EXT_LEN);
-	buffer[AMSDOS_EXT_LEN + 1] = 0;
+	buffer[AMSDOS_EXT_LEN] = 0;
 	/* Strip attributes */
 	buffer[0] &= 0x7F;
 	buffer[1] &= 0x7F;
@@ -351,23 +351,40 @@ dsk_type *dsk_new(const char *filename) {
 }
 	
 
+static uint32_t get_dir_entry_offset(dsk_type *dsk, int index) {
+	uint8_t sector_id = first_sector_id(dsk) + (index >> 4);
+	uint8_t track = base_track_index(dsk);
+	return get_sector_offset(dsk, track, 0, sector_id)
+		+ ((index & 15) << 5);
+}
+
 dir_entry_type *dsk_get_dir_entry(dsk_type *dsk, 
 				  dir_entry_type *dir_entry, 
 				  int index) {
+	LOG(LOG_DEBUG, "dsk_get_dir_entry(index=%d)", index);
 	if (index < NUM_DIRENT) {
-		int sector_id = first_sector_id(dsk) + (index >> 4);
-		int track = base_track_index(dsk);
-
-		memcpy(dir_entry, dsk->image 
-		       + get_sector_offset(dsk, track, 0, sector_id)
-		       + ((index & 15) << 5),
-		       sizeof(dir_entry_type));
+		uint32_t offset = get_dir_entry_offset(dsk, index);
+		LOG(LOG_TRACE, "Copying from image offset %08x", offset);
+		memcpy(dir_entry, dsk->image + offset, sizeof(dir_entry_type));
 		return dir_entry;
 	} else {
 		return 0;
 	}
 }
 
+void dsk_set_dir_entry(dsk_type *dsk,
+		       dir_entry_type *dir_entry,
+		       int index) {
+	LOG(LOG_DEBUG, "dsk_set_dir_entry(index=%d, user=%u)", index,
+	    dir_entry->user);
+	if (index < NUM_DIRENT) {
+		uint32_t offset = get_dir_entry_offset(dsk, index);
+		LOG(LOG_TRACE, "Copying to image offset %08x", offset);
+		memcpy(dsk->image + offset, dir_entry, sizeof(dir_entry_type));
+	} else {
+		LOG(LOG_WARN, "Directory entry index out of bounds");
+	}
+}
 
 uint32_t dsk_get_total_blocks(dsk_type *dsk) {
 	int i;
@@ -511,4 +528,59 @@ int dsk_dump_file(dsk_type *dsk,
 		dsk_set_error(dsk, "Unable to find file %s\n", name);
 		return DSK_ERROR;
 	}
+}
+
+int dsk_dump_image(dsk_type *dsk, const char *destination) {
+        FILE *fd = fopen(destination, "w");
+        if (fd != NULL) {
+                if (fwrite(dsk->dsk_info,
+                           sizeof(dsk_info_type), 1, fd) < 1) {
+                        dsk_set_error(dsk, "Writing image to %s. %s",
+                                      destination,
+                                      strerror(errno));
+                        fclose(fd);
+                        return DSK_ERROR;
+                }
+                if (fwrite(dsk->image,
+                           get_image_size(dsk), 1, fd) < 1) {
+                        dsk_set_error(dsk, "Writing image to %s. %s",
+                                      destination,
+                                      strerror(errno));
+                        fclose(fd);
+                        return DSK_ERROR;
+                }
+                fclose(fd);
+                return DSK_OK;
+        } else {
+                dsk_set_error(dsk, "Opening destination file %s. %s",
+                              destination,
+                              strerror(errno));
+                return DSK_ERROR;
+        }
+}
+
+int dsk_remove_file(dsk_type *dsk,
+                    const char *name,
+                    const char *destination,
+                    uint8_t user) {
+        LOG(LOG_DEBUG, "dsk_remove_file(name=%s, destination=%s, user=%u)",
+            name, destination, user);
+        dsk_reset_error(dsk);
+
+        dir_entry_type dir_entry, *dir_entry_p;
+
+        int index = get_dir_entry_for_file(dsk, name, user, &dir_entry);
+        if (index >= 0) {
+                do {
+                        dir_entry.user = AMSDOS_USER_DELETED;
+			dsk_set_dir_entry(dsk, &dir_entry, index);
+			dir_entry_p = dsk_get_dir_entry(dsk, &dir_entry, ++index);
+                } while (dir_entry_p &&
+                         dir_entry_p->extent_low &&
+                         dir_entry_p->user == user);
+                return dsk_dump_image(dsk, destination);
+        } else {
+                dsk_set_error(dsk, "Unable to find file %s\n", name);
+                return DSK_ERROR;
+        }
 }

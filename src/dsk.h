@@ -106,4 +106,7 @@ char *dir_entry_get_name(dir_entry_type *dir_entry, char *buffer);
 uint32_t dir_entry_get_size(dir_entry_type* dir_entries, int index);
 int dsk_dump_file(dsk_type *dsk, const char *name, const char *destination,
 		  uint8_t user);
+int dsk_remove_file(dsk_type *dsk, const char *name, const char *destination,
+		    uint8_t user);
+int dsk_dump_image(dsk_type *dsk, const char *destination);
 #endif //DSK_H
