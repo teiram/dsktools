@@ -101,11 +101,16 @@ int export_dsk(const char *dsk_filename, const char *amsdos_filename,
 	       const char *dst_filename, uint8_t user) {
 	dsk_type *dsk = dsk_new(dsk_filename);
 	if (dsk) {
-		return dsk_dump_file(dsk, amsdos_filename, 
-				     dst_filename ? dst_filename : amsdos_filename,
-				     user);
+		int status = dsk_dump_file(dsk, amsdos_filename, 
+					   dst_filename ? dst_filename : amsdos_filename,
+					   user);
+		if (status != DSK_OK) {
+			fprintf(stderr, "Failure: %s\n", dsk_get_error(dsk));
+		}
+		return status;
 	} else {
-		return -1;
+		fprintf(stderr, "Unable to open DSK\n");
+		return DSK_ERROR;
 	}
 }
 

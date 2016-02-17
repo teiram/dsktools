@@ -43,6 +43,10 @@ static void dsk_set_error(dsk_type *dsk, const char *fmt, ...) {
 	}
 }
 
+static void dsk_reset_error(dsk_type *dsk) {
+	dsk->error[0] = 0;
+}
+
 char *dsk_get_error(dsk_type *dsk) {
 	if (dsk) {
 		return dsk->error;
@@ -138,7 +142,7 @@ static uint8_t first_sector_id(dsk_type *dsk) {
 			min = track0->sector_info[i].sector_id;
 		}
 	}
-	LOG(LOG_DEBUG, "First sector id is %02x", min);
+	LOG(LOG_TRACE, "First sector id is %02x", min);
 	return min;
 }
 
@@ -157,15 +161,15 @@ static uint8_t base_track_index(dsk_type *dsk) {
 static uint32_t get_sector_offset_in_track(track_info_type *track, uint8_t sector_id) {
 	uint32_t offset = 0;
 	int i;
-	LOG(LOG_DEBUG, "Calculating offset for sector %02x in track %u",
+	LOG(LOG_DEBUG, "get_sector_offset_in_track(track=%u, sector=%02x)",
 	    sector_id, track->track_number);
 	for (i = 0; i < track->sector_count; i++) {
 		sector_info_type *sinfo = &track->sector_info[i];
-		LOG(LOG_DEBUG, "Adding offset for sector %02x. Current %04x", 
+		LOG(LOG_TRACE, "Adding offset for sector %02x. Current %04x", 
 		    sinfo->sector_id, offset);
 		if (sinfo->sector_id == sector_id) {
 			offset += sizeof(track_info_type);
-			LOG(LOG_DEBUG, " result: %04x", offset);
+			LOG(LOG_TRACE, " result: %04x", offset);
 			return offset;
 		} else {
 			offset += 128 << sinfo->size;
@@ -186,13 +190,13 @@ static uint32_t get_block_offset(dsk_type *dsk,
 	uint8_t sector_id = first_sector_id(dsk);
 	sector_id += sector % sectors_in_track;
 
-	LOG(LOG_DEBUG, "Calculated track_index %d, sector_id %02x",
+	LOG(LOG_TRACE, "Calculated track_index %d, sector_id %02x",
 	    track_index, sector_id);
 	uint32_t offset = 0;
 	for (int i = 0; i < track_index; i++) {
 		offset += get_track_size(dsk, i);
 	}
-	LOG(LOG_DEBUG, "Track offset %u", offset);
+	LOG(LOG_TRACE, "Track offset %u", offset);
 	track_info_type *track = dsk_get_track_info(dsk, track_index);
 	if (track) {
 		offset += get_sector_offset_in_track(track, sector_id);
@@ -207,12 +211,12 @@ static uint32_t get_block_offset(dsk_type *dsk,
 static uint32_t get_sector_offset(dsk_type *dsk, 
 				  uint8_t track_id, uint8_t side, 
 				  uint8_t sector_id) {
-	LOG(LOG_DEBUG, "get_sector_offset(track:%u, side: %u, sector: %02x)",
+	LOG(LOG_DEBUG, "get_sector_offset(track=%u, side=%u, sector=%02x)",
 	    track_id, side, sector_id);
 	uint32_t offset = 0;
 	for (int i = 0; i < dsk->dsk_info->tracks; i++) {
 		track_info_type *track = dsk_get_track_info(dsk, i);
-		LOG(LOG_DEBUG, "Searching in track %u", track->track_number);
+		LOG(LOG_TRACE, "Searching in track %u", track->track_number);
 		if (track->track_number == track_id &&
 		    track->side_number == side) {
 			offset += get_sector_offset_in_track(track, sector_id);
@@ -220,7 +224,7 @@ static uint32_t get_sector_offset(dsk_type *dsk,
 		} else {
 			offset += get_track_size(dsk, i);
 		}
-		LOG(LOG_DEBUG, " +current offset %04x", offset);
+		LOG(LOG_TRACE, " +current offset %04x", offset);
 	}
 	LOG(LOG_DEBUG, " +calculated offset. %04x", offset);
 	return offset;
@@ -230,14 +234,26 @@ uint8_t is_dir_entry_deleted(dir_entry_type *dir_entry) {
 	return dir_entry->user == AMSDOS_USER_DELETED ? 1 : 0;
 }
 
-char *dir_entry_get_name(dir_entry_type *dir_entry, char *name) {
-	memcpy(name, dir_entry->name, 8);
-	name[8] = '.';
-	memcpy(name + 9, dir_entry->extension, 3);
-	name[12] = 0;
-	name[9] &= 0x7F;
-	name[10] &= 0x7F;
-	return name;
+char *dir_entry_get_basename(dir_entry_type *dir_entry, char *buffer) {
+	memcpy(buffer, dir_entry->name, AMSDOS_NAME_LEN);
+	buffer[AMSDOS_NAME_LEN] = 0;
+	return buffer;
+}
+
+char *dir_entry_get_extension(dir_entry_type *dir_entry, char *buffer) {
+	memcpy(buffer, dir_entry->extension, AMSDOS_EXT_LEN);
+	buffer[AMSDOS_EXT_LEN + 1] = 0;
+	/* Strip attributes */
+	buffer[0] &= 0x7F;
+	buffer[1] &= 0x7F;
+	return buffer;
+}
+
+char *dir_entry_get_name(dir_entry_type *dir_entry, char *buffer) {
+	dir_entry_get_basename(dir_entry, buffer);
+	buffer[AMSDOS_NAME_LEN] = '.';
+	dir_entry_get_extension(dir_entry, buffer + AMSDOS_NAME_LEN + 1);
+	return buffer;
 }
 
 uint32_t dir_entry_get_size(dir_entry_type* dir_entries, int index) {
@@ -373,6 +389,7 @@ char *get_amsdos_filename(const char *name, char *buffer) {
 		buffer[i] = i < len ? toupper(buffer[i]) : ' ';
 	}
 	buffer[AMSDOS_NAME_LEN] = 0;
+	LOG(LOG_TRACE, "Calculated amsdos name: %s", buffer);
 	return buffer;
 }
 
@@ -387,6 +404,7 @@ char *get_amsdos_extension(const char *name, char *buffer) {
 		buffer[i] = i < len ? toupper(buffer[i]) : ' ';
 	}
 	buffer[AMSDOS_EXT_LEN] = 0;
+	LOG(LOG_TRACE, "Calculated amsdos extension: %s", buffer);
 	return buffer;
 }
 
@@ -396,18 +414,23 @@ int8_t get_dir_entry_for_file(dsk_type *dsk,
 			      dir_entry_type *entry) {
 	char filename[AMSDOS_NAME_LEN + 1];
 	char extension[AMSDOS_EXT_LEN + 1];
+	char buffer[AMSDOS_NAME_LEN + 1];
 	get_amsdos_filename(name, (char*) &filename);
 	get_amsdos_extension(name, (char *)&extension);
-	LOG(LOG_DEBUG,"Looking for %s.%s, user %u", filename, extension, user);
+	LOG(LOG_DEBUG,"get_dir_entry_for_file(amsdos(name=%s.%s, user %u))", filename, extension, user);
 	int i = 0;
 	for (i = 0; i < NUM_DIRENT; i++) {
 		dsk_get_dir_entry(dsk, entry, i);
-		if (strncmp(filename, (char*) entry->name, AMSDOS_NAME_LEN) == 0 &&
-		    strncmp(extension, (char*) entry->extension, AMSDOS_EXT_LEN) == 0 &&
-		    entry->user == user) {	
+		if (strncmp(filename, dir_entry_get_basename(entry, buffer), 
+			    AMSDOS_NAME_LEN) == 0 &&
+		    strncmp(extension, dir_entry_get_extension(entry, buffer),
+			    AMSDOS_EXT_LEN) == 0 &&
+		    entry->user == user) {
+			LOG(LOG_DEBUG, "Found matching directory entry %u", i);
 			return i;
 		}
 	}
+	LOG(LOG_DEBUG, "No matching entry for file found");
 	return -1;
 }
 
@@ -425,13 +448,13 @@ static void write_entry_sector(dsk_type *dsk, FILE *fd, uint8_t sector) {
 void write_entry_blocks(dsk_type *dsk, FILE *fd, dir_entry_type *dir_entry) {
 	int i;
 	char name[16];
-	LOG(LOG_DEBUG, "Writing blocks for entry %s, extent_low %u, records %u",
+	LOG(LOG_DEBUG, "write_entry_blocks(entry=%s, extent_low=%u, records=%u)",
 	    dir_entry_get_name(dir_entry, name),
 	    dir_entry->extent_low,
 	    dir_entry->record_count);
 	    
 	int block_count = (dir_entry->record_count + 7) >> 3;
-	LOG(LOG_DEBUG, "Block count is %d", block_count);
+	LOG(LOG_TRACE, "Block count is %d", block_count);
 	for (i = 0; i < block_count; i++) {
 		if (dir_entry->blocks[i] > 0) {
 			uint8_t sector = dir_entry->blocks[i] << 1;
@@ -447,6 +470,7 @@ int dsk_dump_file(dsk_type *dsk,
 		  uint8_t user) {
 	LOG(LOG_DEBUG, "dsk_dump_file(name=%s, destination=%s, user=%u)",
 	    name, destination, user);
+	dsk_reset_error(dsk);
 	dir_entry_type dir_entry, *dir_entry_p;
 
 	int index = get_dir_entry_for_file(dsk, name, user, &dir_entry);
@@ -461,15 +485,15 @@ int dsk_dump_file(dsk_type *dsk,
 				 dir_entry_p->extent_low && 
 				 dir_entry_p->user == user);
 			fclose(fd);
-			return 0;
+			return DSK_OK;
 		} else {
-			fprintf(stderr, "Unable to write to file %s: %s\n", 
-				destination,
-				strerror(errno));
-			return -1;
+			dsk_set_error(dsk, "Unable to write to file %s: %s", 
+				      destination,
+				      strerror(errno));
+			return DSK_ERROR;
 		}
 	} else {
-		fprintf(stderr, "Unable to find file %s\n", name);
-		return -1;
+		dsk_set_error(dsk, "Unable to find file %s\n", name);
+		return DSK_ERROR;
 	}
 }

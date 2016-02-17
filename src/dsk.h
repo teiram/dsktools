@@ -32,6 +32,8 @@
 #define AMSDOS_USER_DELETED 0xE5
 
 #define DSK_ERROR_SIZE 256
+#define DSK_OK 0
+#define DSK_ERROR -1
 
 #define BASE_SECTOR_IBM 0x01
 #define BASE_SECTOR_SYS 0x41
@@ -100,7 +102,7 @@ dir_entry_type *dsk_get_dir_entry(dsk_type *dsk,
 				  int index);
 
 uint8_t is_dir_entry_deleted(dir_entry_type *dir_entry);
-char *dir_entry_get_name(dir_entry_type *dir_entry, char *name);
+char *dir_entry_get_name(dir_entry_type *dir_entry, char *buffer);
 uint32_t dir_entry_get_size(dir_entry_type* dir_entries, int index);
 int dsk_dump_file(dsk_type *dsk, const char *name, const char *destination,
 		  uint8_t user);
