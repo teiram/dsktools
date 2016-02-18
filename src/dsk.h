@@ -132,12 +132,13 @@ dir_entry_type *dsk_get_dir_entry(dsk_type *dsk,
 bool is_dir_entry_deleted(dir_entry_type *dir_entry);
 char *dir_entry_get_name(dir_entry_type *dir_entry, char *buffer);
 uint32_t dir_entry_get_size(dir_entry_type* dir_entries, int index);
-int dsk_dump_file(dsk_type *dsk, const char *name, const char *destination,
-		  uint8_t user);
+int dsk_get_file(dsk_type *dsk, const char *name, const char *destination,
+		 uint8_t user);
 int dsk_add_file(dsk_type *dsk, const char *source_file,
 		 const char *target_name, amsdos_mode_type mode,
 		 uint8_t user);
-int dsk_remove_file(dsk_type *dsk, const char *name, const char *destination,
-		    uint8_t user);
+int dsk_remove_file(dsk_type *dsk, const char *name, uint8_t user);
 int dsk_dump_image(dsk_type *dsk, const char *destination);
+bool dsk_has_file(dsk_type *dsk, const char *name, uint8_t user);
+
 #endif //DSK_H

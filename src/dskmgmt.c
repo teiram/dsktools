@@ -62,8 +62,8 @@ int info_dsk(const char *filename) {
 		printf("Creator\t\t: %s\n", creator);
 		printf("Tracks\t\t: %6d\n", dsk->dsk_info->tracks);
 		printf("Sides\t\t: %6d\n", dsk->dsk_info->sides);
-		printf("Total size\t: %6d bytes\n", dsk_get_total_blocks(dsk) << 7);
-		printf("Used\t\t: %6d bytes\n", dsk_get_used_blocks(dsk) << 7);
+		printf("Total size\t: %6d bytes\n", dsk_get_total_blocks(dsk));
+		printf("Used\t\t: %6d bytes\n", dsk_get_used_blocks(dsk));
 		dsk_delete(dsk);
 		return DSK_OK;
 
@@ -110,12 +110,12 @@ int export_dsk(const char *dsk_filename, const char *amsdos_filename,
 	       const char *dst_filename, uint8_t user) {
 	dsk_type *dsk = dsk_new(dsk_filename);
 	if (dsk) {
-		int status = dsk_dump_file(dsk, amsdos_filename, 
-					   dst_filename ? dst_filename : amsdos_filename,
+		int status = dsk_get_file(dsk, amsdos_filename, 
+					  dst_filename ? dst_filename : amsdos_filename,
 					   user);
 		if (status != DSK_OK) {
 			fprintf(stderr, "Failure: %s\n", dsk_get_error(dsk));
-		}
+		} 
 		dsk_delete(dsk);
 		return status;
 	} else {
@@ -148,11 +148,12 @@ int remove_from_dsk(const char *dsk_filename, const char *amsdos_filename,
                     const char *dst_filename, uint8_t user) {
         dsk_type *dsk = dsk_new(dsk_filename);
         if (dsk) {
-                int status = dsk_remove_file(dsk, amsdos_filename,
-                                             dst_filename, user);
+                int status = dsk_remove_file(dsk, amsdos_filename, user);
                 if (status != DSK_OK) {
                         fprintf(stderr, "Failure: %s\n", dsk_get_error(dsk));
-                }
+                } else {
+			dsk_dump_image(dsk, dst_filename);
+		}
                 return status;
         } else {
                 fprintf(stderr, "Unable to open DSK\n");

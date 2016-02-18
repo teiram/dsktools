@@ -259,7 +259,7 @@ static const char* get_basename(const char *name) {
 	do {
 		ptr = strstr(ptr, "/");
 		if (ptr) {
-			result = ptr + 1;
+			result = ++ptr;
 		}
 	} while (ptr);
 	LOG(LOG_TRACE, "Basename calculated as: %s", result);
@@ -524,6 +524,7 @@ uint32_t dsk_get_total_blocks(dsk_type *dsk) {
 			dsk_get_track_info(dsk, i);
 		blocks += track->sector_count * track->sector_size;
 	}
+	blocks <<= 7; /* Each block has 128bytes */
 	LOG(LOG_TRACE, "Total blocks in disk %u", blocks);
 	return blocks;
 }
@@ -538,6 +539,7 @@ uint32_t dsk_get_used_blocks(dsk_type *dsk) {
 			blocks += dir_entry.record_count;
 		}
 	}
+	blocks <<= 7;
 	LOG(LOG_TRACE, "Used blocks in disk %u", blocks);
 	return blocks;
 }
@@ -598,11 +600,11 @@ void write_entry_blocks(dsk_type *dsk, FILE *fd, dir_entry_type *dir_entry) {
 	}
 }
 
-int dsk_dump_file(dsk_type *dsk, 
+int dsk_get_file(dsk_type *dsk, 
 		  const char *name, 
 		  const char *destination,
 		  uint8_t user) {
-	LOG(LOG_DEBUG, "dsk_dump_file(name=%s, destination=%s, user=%u)",
+	LOG(LOG_DEBUG, "dsk_get_file(name=%s, destination=%s, user=%u)",
 	    name, destination, user);
 	dsk_reset_error(dsk);
 	dir_entry_type dir_entry, *dir_entry_p;
@@ -663,10 +665,9 @@ int dsk_dump_image(dsk_type *dsk, const char *destination) {
 
 int dsk_remove_file(dsk_type *dsk,
                     const char *name,
-                    const char *destination,
                     uint8_t user) {
-        LOG(LOG_DEBUG, "dsk_remove_file(name=%s, destination=%s, user=%u)",
-            name, destination, user);
+        LOG(LOG_DEBUG, "dsk_remove_file(name=%s, user=%u)",
+            name, user);
         dsk_reset_error(dsk);
 
         dir_entry_type dir_entry, *dir_entry_p;
@@ -680,7 +681,7 @@ int dsk_remove_file(dsk_type *dsk,
                 } while (dir_entry_p &&
                          dir_entry_p->extent_low &&
                          dir_entry_p->user == user);
-                return dsk_dump_image(dsk, destination);
+		return DSK_OK;
         } else {
                 dsk_set_error(dsk, "Unable to find file %s\n", name);
                 return DSK_ERROR;
@@ -692,10 +693,15 @@ static bool is_block_in_use(dsk_type *dsk, uint8_t block) {
 	dir_entry_type dir_entry;
 	for (int i = 0; i < NUM_DIRENT; i++) {
 		dsk_get_dir_entry(dsk, &dir_entry, i);
-		int block_count = (dir_entry.record_count + 7) >> 3;
-		for (int j = 0; j < block_count; j++) {
-			if (dir_entry.blocks[j] == block) {
-				return true;
+		if (!is_dir_entry_deleted(&dir_entry)) {
+			int block_count = (dir_entry.record_count + 7) >> 3;
+			for (int j = 0; j < block_count; j++) {
+				if (dir_entry.blocks[j] == block) {
+					LOG(LOG_TRACE, 
+					    "Block %02x in use by entry %u", 
+					    block, i);
+					return true;
+				}
 			}
 		}
 	}
@@ -725,16 +731,22 @@ static int8_t get_free_block(dsk_type *dsk) {
 	LOG(LOG_TRACE, "Base search block is %u", dsk->last_free_block);
 	uint8_t block = dsk->last_free_block;
 	while (block < dsk_get_total_blocks(dsk)) {
-		if (!is_block_in_use(dsk, block++)) {
-			LOG(LOG_TRACE, "Found free block %u\n", block);
-			dsk->last_free_block = block;
+		if (!is_block_in_use(dsk, block)) {
+			LOG(LOG_TRACE, "Found free block %02x\n", block);
+			/* A bit hacky, but we need to start searching
+			 * in the next block to avoid reusing the same
+			 * blocks, since the directory entry is only 
+			 * updated at the end
+			 */
+			dsk->last_free_block = block + 1;
 			return block;
 		}
+		++block;
 	}
 	return -1;
 }
 
-static void write_dsk_sector(dsk_type *dsk, FILE *fd, uint8_t sector) {
+static void read_sector(dsk_type *dsk, FILE *fd, uint8_t sector) {
 	uint32_t offset = get_block_offset(dsk, sector);
 	if (offset > 0) {
 		LOG(LOG_DEBUG, "Writing block of size %d, offset %04x", SECTOR_SIZE, offset);
@@ -760,12 +772,24 @@ static off_t get_file_size(const char *filename) {
 	}
 }
 
+bool dsk_has_file(dsk_type *dsk, const char *name, uint8_t user) {
+	dir_entry_type dir_entry;
+	return get_dir_entry_for_file(dsk, name, user, &dir_entry) >= 0;
+}
+
 int dsk_add_file(dsk_type *dsk, const char *source_file, 
 		 const char *target_name, amsdos_mode_type mode,
 		 uint8_t user) {
 
 	LOG(LOG_DEBUG, "dsk_add_file(source=%s, target=%s, mode=%d, user=%u)",
 	    source_file, target_name, mode, user);
+	dsk_reset_error(dsk);
+
+	if (dsk_has_file(dsk, target_name, user)) {
+		dsk_set_error(dsk, "File %s(%d) already exists in dsk",
+			      target_name, user);
+		return DSK_ERROR;
+	}
 
 	off_t size = get_file_size(source_file);
 	LOG(LOG_TRACE, "File size is %d", size);
@@ -813,8 +837,8 @@ int dsk_add_file(dsk_type *dsk, const char *source_file,
 			if (block >= 0) {
 				dir_entry.blocks[i] = (uint8_t) block;
 				uint8_t sector = block << 1;
-				write_dsk_sector(dsk, stream, sector);
-				write_dsk_sector(dsk, stream, sector + 1);
+				read_sector(dsk, stream, sector);
+				read_sector(dsk, stream, sector + 1);
 				pos += SECTOR_SIZE << 1;
 			} else {
 				dsk_set_error(dsk, "Free blocks exhausted");
