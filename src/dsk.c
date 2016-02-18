@@ -27,6 +27,10 @@
 #include <errno.h>
 #include <ctype.h>
 #include <sys/param.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include "dsk.h"
 #include "log.h"
 
@@ -91,6 +95,7 @@ static uint32_t get_track_size(dsk_type *dsk, uint8_t track) {
 		return 0;
 	}
 }
+
 
 static uint32_t get_image_size(dsk_type *dsk) {
 	if (is_dsk_image(dsk)) {
@@ -157,6 +162,15 @@ static uint8_t base_track_index(dsk_type *dsk) {
 		return 0;
 	}
 }	
+
+static uint32_t get_track_usable_blocks(dsk_type *dsk, uint8_t track) {
+	if (track < base_track_index(dsk)) {
+		return 0;
+	} else {
+		return get_track_size(dsk, track) - sizeof(track_info_type);
+	}
+}
+
 
 static uint32_t get_sector_offset_in_track(track_info_type *track, uint8_t sector_id) {
 	uint32_t offset = 0;
@@ -234,8 +248,125 @@ static bool is_track_in_offset(dsk_type *dsk, uint32_t offset) {
 	return !strncmp((char*) dsk->image + offset, DSK_TRACK_HEADER, 13);
 }
 
-uint8_t is_dir_entry_deleted(dir_entry_type *dir_entry) {
-	return dir_entry->user == AMSDOS_USER_DELETED ? 1 : 0;
+static const char* get_basename(const char *name) {
+	/* 
+	 * Take only the last path segment. Only considering
+	 * unix like paths so far
+	 */
+	LOG(LOG_TRACE, "get_basename(name=%s)", name);
+	const char *result = name;
+	const char *ptr = name;
+	do {
+		ptr = strstr(ptr, "/");
+		if (ptr) {
+			result = ptr + 1;
+		}
+	} while (ptr);
+	LOG(LOG_TRACE, "Basename calculated as: %s", result);
+	return result;
+}
+
+static char *get_amsdos_filename(const char *name, char *buffer) {
+	LOG(LOG_TRACE, "get_amsdos_filename(name=%s)", name);
+
+	const char *name_ptr = get_basename(name);
+	char *separator = strstr(name_ptr, ".");
+	size_t len = separator ? MIN(separator - name_ptr, AMSDOS_NAME_LEN) :
+		MIN(strlen(name_ptr), AMSDOS_NAME_LEN);
+
+	strncpy(buffer, name_ptr, len);
+	int i;
+	for (i = 0; i < AMSDOS_NAME_LEN; i++) {
+		buffer[i] = i < len ? toupper(buffer[i]) : ' ';
+	}
+	buffer[AMSDOS_NAME_LEN] = 0;
+	LOG(LOG_TRACE, "Calculated amsdos name: %s", buffer);
+	return buffer;
+}
+
+static char *get_amsdos_extension(const char *name, char *buffer) {
+	LOG(LOG_TRACE, "get_amsdos_extension(name=%s)", name);
+	const char* name_ptr = get_basename(name);
+	char *separator = strstr(name_ptr, ".");
+	int len = 0;
+	if (separator) {
+		len = strlen(separator + 1);
+		strncpy(buffer, separator + 1, AMSDOS_EXT_LEN);
+	}
+	for (int i = 0; i < AMSDOS_EXT_LEN; i++) {
+		buffer[i] = i < len ? toupper(buffer[i]) : ' ';
+	}
+	buffer[AMSDOS_EXT_LEN] = 0;
+	LOG(LOG_TRACE, "Calculated amsdos extension: %s", buffer);
+	return buffer;
+}
+
+static uint16_t get_amsdos_checksum(amsdos_header_type *header) {
+	uint16_t checksum = 0;
+	for (int i = 0; i < 67; i++) {
+		checksum += *(((uint8_t*)header) + i);
+	}
+	return checksum;
+}
+
+static void set_amsdos_checksum(amsdos_header_type *header) {
+	header->checksum = get_amsdos_checksum(header);
+}
+
+static amsdos_header_type *init_amsdos_header(amsdos_header_type *header,
+					      const char *name, 
+					      uint16_t size) {
+	memset(header, 0, sizeof(amsdos_header_type));
+	/* Be aware that these functions set a NULL at end, 
+	 * but they can be used here because of the order
+	 * and because there are some unused bytes after the
+	 * extension
+	 */
+	get_amsdos_filename(name, header->name);
+	get_amsdos_extension(name, header->extension);
+	header->data_length = 0;
+	header->logical_length = header->file_length = size;
+	header->type = AMSDOS_BINARY;
+	set_amsdos_checksum(header);
+	return header;
+}
+
+static bool has_amsdos_header(uint8_t *stream) {
+	amsdos_header_type *header = (amsdos_header_type *) stream;
+	return header->checksum == get_amsdos_checksum(header);
+}
+
+static uint8_t get_free_dir_entry_count(dsk_type *dsk) {
+	uint8_t free_entries = 0;
+	dir_entry_type dir_entry;
+	for (int i = 0; i < NUM_DIRENT; i++) {
+		dsk_get_dir_entry(dsk, &dir_entry, i);
+		if (is_dir_entry_deleted(&dir_entry)) {
+			++free_entries;
+		}
+	}
+	return free_entries;
+}
+
+static int8_t get_next_free_dir_entry(dsk_type *dsk) {
+	dir_entry_type dir_entry;
+	for (int i = 0; i < NUM_DIRENT; i++) {
+		dsk_get_dir_entry(dsk, &dir_entry, i);
+		if (is_dir_entry_deleted(&dir_entry)) {
+			return i;
+		}
+	}
+	LOG(LOG_WARN, "Exhausted directory entries");
+	return -1;
+}
+
+static dir_entry_type *init_dir_entry(dir_entry_type *dir_entry) {
+	memset(dir_entry, 0, sizeof(dir_entry_type));
+	return dir_entry;
+}
+
+bool is_dir_entry_deleted(dir_entry_type *dir_entry) {
+	return dir_entry->user == AMSDOS_USER_DELETED;
 }
 
 char *dir_entry_get_basename(dir_entry_type *dir_entry, char *buffer) {
@@ -387,13 +518,13 @@ void dsk_set_dir_entry(dsk_type *dsk,
 }
 
 uint32_t dsk_get_total_blocks(dsk_type *dsk) {
-	int i;
 	uint32_t blocks = 0;
-	for (i = 0; i < dsk->dsk_info->tracks; i++) {
+	for (int i = 0; i < dsk->dsk_info->tracks; i++) {
 		track_info_type *track = 
 			dsk_get_track_info(dsk, i);
 		blocks += track->sector_count * track->sector_size;
 	}
+	LOG(LOG_TRACE, "Total blocks in disk %u", blocks);
 	return blocks;
 }
 
@@ -407,37 +538,8 @@ uint32_t dsk_get_used_blocks(dsk_type *dsk) {
 			blocks += dir_entry.record_count;
 		}
 	}
+	LOG(LOG_TRACE, "Used blocks in disk %u", blocks);
 	return blocks;
-}
-
-char *get_amsdos_filename(const char *name, char *buffer) {
-	char *separator = strstr(name, ".");
-	size_t len = separator ? MIN(separator - name, AMSDOS_NAME_LEN) :
-		MIN(strlen(name), AMSDOS_NAME_LEN);
-
-	strncpy(buffer, name, len);
-	int i;
-	for (i = 0; i < AMSDOS_NAME_LEN; i++) {
-		buffer[i] = i < len ? toupper(buffer[i]) : ' ';
-	}
-	buffer[AMSDOS_NAME_LEN] = 0;
-	LOG(LOG_TRACE, "Calculated amsdos name: %s", buffer);
-	return buffer;
-}
-
-char *get_amsdos_extension(const char *name, char *buffer) {
-	int i, len = 0;
-	char *separator = strstr(name, ".");
-	if (separator) {
-		len = strlen(separator + 1);
-		strncpy(buffer, separator + 1, AMSDOS_EXT_LEN);
-	}
-	for (i = 0; i < AMSDOS_EXT_LEN; i++) {
-		buffer[i] = i < len ? toupper(buffer[i]) : ' ';
-	}
-	buffer[AMSDOS_EXT_LEN] = 0;
-	LOG(LOG_TRACE, "Calculated amsdos extension: %s", buffer);
-	return buffer;
 }
 
 int8_t get_dir_entry_for_file(dsk_type *dsk, 
@@ -583,4 +685,143 @@ int dsk_remove_file(dsk_type *dsk,
                 dsk_set_error(dsk, "Unable to find file %s\n", name);
                 return DSK_ERROR;
         }
+}
+
+static bool is_block_in_use(dsk_type *dsk, uint8_t block) {
+	/* To be optimized */
+	dir_entry_type dir_entry;
+	for (int i = 0; i < NUM_DIRENT; i++) {
+		dsk_get_dir_entry(dsk, &dir_entry, i);
+		int block_count = (dir_entry.record_count + 7) >> 3;
+		for (int j = 0; j < block_count; j++) {
+			if (dir_entry.blocks[j] == block) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+static uint32_t get_blocks_in_disk(dsk_type *dsk) {
+	if (dsk->total_blocks == 0) {
+		for (int i = 0; i < dsk->dsk_info->tracks; i++) {
+			dsk->total_blocks  += get_track_size(dsk, i) - 
+				sizeof(track_info_type);
+		}
+	}
+	return dsk->total_blocks;
+}
+
+static int8_t get_free_block(dsk_type *dsk) {
+	if (dsk->last_free_block == 0) {
+		uint8_t base_block = 0;
+		for (int i = 0; i < base_track_index(dsk); i++) {
+			base_block += get_track_size(dsk, i) - sizeof(track_info_type);
+		}
+		/* Skip directory */
+		base_block += (NUM_DIRENT * sizeof(dir_entry_type)) >> 10;
+		dsk->last_free_block = base_block;
+	}
+	LOG(LOG_TRACE, "Base search block is %u", dsk->last_free_block);
+	uint8_t block = dsk->last_free_block;
+	while (block < dsk_get_total_blocks(dsk)) {
+		if (!is_block_in_use(dsk, block++)) {
+			LOG(LOG_TRACE, "Found free block %u\n", block);
+			dsk->last_free_block = block;
+			return block;
+		}
+	}
+	return -1;
+}
+
+static void write_dsk_sector(dsk_type *dsk, FILE *fd, uint8_t sector) {
+	uint32_t offset = get_block_offset(dsk, sector);
+	if (offset > 0) {
+		LOG(LOG_DEBUG, "Writing block of size %d, offset %04x", SECTOR_SIZE, offset);
+		uint8_t *dst = dsk->image + offset;
+		fread(dst, SECTOR_SIZE, 1, fd);
+	} else {
+		LOG(LOG_WARN, "Skipping sector %d", sector);
+	}
+}
+
+static off_t get_file_size(const char *filename) {
+	struct stat buf;
+	if (stat(filename, &buf)) {
+		LOG(LOG_ERROR, "Unable to stat file %s", filename);
+		return DSK_ERROR;
+	} else {
+		if (S_ISREG(buf.st_mode)) {
+			return buf.st_size;
+		} else {
+			LOG(LOG_ERROR, "Not a regular file %s", filename);
+			return DSK_ERROR;
+		}
+	}
+}
+
+int dsk_add_file(dsk_type *dsk, const char *source_file, 
+		 const char *target_name, amsdos_mode_type mode,
+		 uint8_t user) {
+
+	LOG(LOG_DEBUG, "dsk_add_file(source=%s, target=%s, mode=%d, user=%u)",
+	    source_file, target_name, mode, user);
+
+	off_t size = get_file_size(source_file);
+	LOG(LOG_TRACE, "File size is %d", size);
+
+	if (size < 0) {
+		LOG(LOG_ERROR, "Unable to determine file size %s", source_file);
+		dsk_set_error(dsk, "Unable to determine file size for %s",
+			      source_file);
+		return DSK_ERROR;
+	}
+
+	uint16_t free_dir_entries = get_free_dir_entry_count(dsk);
+	if (size > (free_dir_entries * SECTOR_SIZE * 2)) {
+		dsk_set_error(dsk, 
+			      "Not enough free directory entries %d", 
+			      free_dir_entries);
+		return DSK_ERROR;
+	}
+
+	/* TODO: Check if there are enough free blocks */
+	FILE *stream = fopen(source_file, "r");
+	uint8_t extent = 0;
+	for (uint16_t pos = 0; pos < size;) {
+		int8_t dir_entry_index = get_next_free_dir_entry(dsk);
+		if (dir_entry_index < 0) {
+			dsk_set_error(dsk, "Exhausted directory entries");
+			return DSK_ERROR;
+		}
+		dir_entry_type dir_entry;
+		init_dir_entry(&dir_entry);
+		dir_entry.user = user;
+		dir_entry.extent_low = extent++;
+		char buffer[AMSDOS_NAME_LEN + 1];
+		get_amsdos_filename(source_file, buffer);
+		memcpy(dir_entry.name, buffer, AMSDOS_NAME_LEN);
+		get_amsdos_extension(source_file, buffer);
+		memcpy(dir_entry.extension, buffer, AMSDOS_EXT_LEN);
+		/* Records are of 128bytes */
+		uint8_t records = MIN(128, (size - pos + 127) >> 7);
+		dir_entry.record_count = records;
+		/* Blocks are of 1Kbyte */
+		uint8_t blocks = (records + 7) >> 3;
+		for (int i = 0; i < blocks; i++) {
+			int8_t block = get_free_block(dsk);
+			if (block >= 0) {
+				dir_entry.blocks[i] = (uint8_t) block;
+				uint8_t sector = block << 1;
+				write_dsk_sector(dsk, stream, sector);
+				write_dsk_sector(dsk, stream, sector + 1);
+				pos += SECTOR_SIZE << 1;
+			} else {
+				dsk_set_error(dsk, "Free blocks exhausted");
+				return DSK_ERROR;
+			}
+		}
+		dsk_set_dir_entry(dsk, &dir_entry, dir_entry_index);
+	}
+	return DSK_OK;
 }

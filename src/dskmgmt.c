@@ -30,7 +30,8 @@ typedef enum {
 	LIST,
 	INFO,
 	EXPORT,
-	REMOVE
+	REMOVE,
+	ADD
 } option_type;
 
 static int help_exit(const char *message, int exitcode) {
@@ -123,6 +124,26 @@ int export_dsk(const char *dsk_filename, const char *amsdos_filename,
 	}
 }
 
+int add_to_dsk(const char *dsk_filename, const char *source_file,
+	       const char *dst_filename, uint8_t user) {
+	dsk_type *dsk = dsk_new(dsk_filename);
+	if (dsk) {
+		int status = dsk_add_file(dsk, source_file,
+					  source_file,
+					  ASCII, user);
+		if (status != DSK_OK) {
+			fprintf(stderr, "Failure: %s\n", dsk_get_error(dsk));
+		} else {
+			dsk_dump_image(dsk, dst_filename);
+		}
+		dsk_delete(dsk);
+		return status;
+	} else {
+		fprintf(stderr, "Unable to open DSK\n");
+		return DSK_ERROR;
+	}
+}
+
 int remove_from_dsk(const char *dsk_filename, const char *amsdos_filename,
                     const char *dst_filename, uint8_t user) {
         dsk_type *dsk = dsk_new(dsk_filename);
@@ -148,6 +169,7 @@ int main(int argc, char *argv[]) {
                 {"user", 1, 0, 'u'},
                 {"destination", 1, 0, 'o'},
                 {"remove", 1, 0, 'r'},
+                {"add", 1, 0, 'a'},
                 {0, 0, 0, 0}
         };
         int c;
@@ -159,7 +181,7 @@ int main(int argc, char *argv[]) {
 
         do {
                 int option_index = 0;
-                c = getopt_long(argc, argv, "lie:u:o:r:h",
+                c = getopt_long(argc, argv, "lie:u:o:r:a:h",
 				long_options, &option_index);
                 switch(c) {
                 case 'h':
@@ -182,6 +204,10 @@ int main(int argc, char *argv[]) {
                 case 'o':
                         output_filename = optarg;
                         break;
+		case 'a':
+			option = ADD;
+			target_filename = optarg;
+			break;
                 case 'r':
                         option = REMOVE;
                         target_filename = optarg;
@@ -207,6 +233,9 @@ int main(int argc, char *argv[]) {
         case REMOVE:
                 return remove_from_dsk(dsk_filename, target_filename,
                                        output_filename, target_user);
+	case ADD:
+		return add_to_dsk(dsk_filename, target_filename,
+				  output_filename, target_user);
         }
         return result;
 }

@@ -21,6 +21,7 @@
 #define DSK_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define DSK_HEADER "MV - CPC"
 #define EDSK_HEADER "EXTENDED CPC DSK File"
@@ -30,7 +31,7 @@
 #define AMSDOS_EXT_LEN 3
 #define SECTOR_SIZE 512
 #define AMSDOS_USER_DELETED 0xE5
-
+#define AMSDOS_BINARY 2
 #define DSK_ERROR_SIZE 256
 #define DSK_OK 0
 #define DSK_ERROR -1
@@ -73,8 +74,8 @@ typedef struct {
 
 typedef struct {
 	uint8_t user;
-	char name[8];
-	uint8_t extension[3];
+	char name[AMSDOS_NAME_LEN];
+	uint8_t extension[AMSDOS_EXT_LEN];
 	uint8_t extent_low;
 	uint8_t extent_high;
 	uint8_t unused;
@@ -82,11 +83,38 @@ typedef struct {
 	uint8_t blocks[16];
 } dir_entry_type;
 
+typedef enum {
+	ASCII,
+	BINARY
+} amsdos_mode_type;
+
+typedef struct {
+	uint8_t user;
+	char name[AMSDOS_NAME_LEN];
+	char extension[AMSDOS_EXT_LEN];
+	uint8_t unused0[4];
+	uint8_t block_number;
+	uint8_t last_block;
+	uint8_t type;
+	uint8_t data_length;
+	uint8_t load_address;
+	uint8_t first_block;
+	uint16_t logical_length;
+	uint8_t entry_address;
+	uint8_t unused1[36];
+	uint16_t file_length;
+	uint8_t unused2;
+	uint16_t checksum;
+	uint8_t unused3[59];
+} amsdos_header_type;
+
 typedef struct {
 	uint8_t *image;
 	dsk_info_type *dsk_info;
 	track_info_type **track_info;
 	char *error;
+	uint32_t total_blocks;
+	uint8_t last_free_block;
 } dsk_type;
  
 dsk_type *dsk_new(const char *filename);
@@ -101,11 +129,14 @@ dir_entry_type *dsk_get_dir_entry(dsk_type *dsk,
 				  dir_entry_type *dir_entry, 
 				  int index);
 
-uint8_t is_dir_entry_deleted(dir_entry_type *dir_entry);
+bool is_dir_entry_deleted(dir_entry_type *dir_entry);
 char *dir_entry_get_name(dir_entry_type *dir_entry, char *buffer);
 uint32_t dir_entry_get_size(dir_entry_type* dir_entries, int index);
 int dsk_dump_file(dsk_type *dsk, const char *name, const char *destination,
 		  uint8_t user);
+int dsk_add_file(dsk_type *dsk, const char *source_file,
+		 const char *target_name, amsdos_mode_type mode,
+		 uint8_t user);
 int dsk_remove_file(dsk_type *dsk, const char *name, const char *destination,
 		    uint8_t user);
 int dsk_dump_image(dsk_type *dsk, const char *destination);
