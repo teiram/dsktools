@@ -129,8 +129,7 @@ int add_to_dsk(const char *dsk_filename, const char *source_file,
 	dsk_type *dsk = dsk_new(dsk_filename);
 	if (dsk) {
 		int status = dsk_add_file(dsk, source_file,
-					  source_file,
-					  ASCII, user);
+					  source_file, user);
 		if (status != DSK_OK) {
 			fprintf(stderr, "Failure: %s\n", dsk_get_error(dsk));
 		} else {

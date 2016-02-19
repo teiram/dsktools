@@ -23,21 +23,30 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#define SHIFTH(value, shift) \
+	(value + (1 << shift) - 1) >> shift
+
 #define DSK_HEADER "MV - CPC"
 #define EDSK_HEADER "EXTENDED CPC DSK File"
 #define DSK_TRACK_HEADER "Track-Info\r\n"
-#define NUM_DIRENT 64
-#define AMSDOS_NAME_LEN 8
-#define AMSDOS_EXT_LEN 3
-#define SECTOR_SIZE 512
-#define AMSDOS_USER_DELETED 0xE5
+#define NUM_DIRENT              64
+#define AMSDOS_NAME_LEN         8
+#define AMSDOS_EXT_LEN          3
+#define SECTOR_SIZE             512
+#define AMSDOS_BLOCK_SIZE       (SECTOR_SIZE << 1)
+#define AMSDOS_USER_DELETED     0xE5
+#define AMSDOS_RECORD_SIZE      128
+#define AMSDOS_BLOCKS_DIRENT    16
+#define AMSDOS_RECORDS_DIRENT   128 
 #define AMSDOS_BINARY 2
 #define DSK_ERROR_SIZE 256
 #define DSK_OK 0
 #define DSK_ERROR -1
 
 #define BASE_SECTOR_IBM 0x01
+#define RESERVED_SECTORS_IBM 1
 #define BASE_SECTOR_SYS 0x41
+#define RESERVED_SECTORS_SYS 2
 #define BASE_SECTOR_DATA 0xC1
 
 typedef struct {
@@ -80,7 +89,7 @@ typedef struct {
 	uint8_t extent_high;
 	uint8_t unused;
 	uint8_t record_count;
-	uint8_t blocks[16];
+	uint8_t blocks[AMSDOS_BLOCKS_DIRENT];
 } dir_entry_type;
 
 typedef enum {
@@ -135,8 +144,12 @@ uint32_t dir_entry_get_size(dir_entry_type* dir_entries, int index);
 int dsk_get_file(dsk_type *dsk, const char *name, const char *destination,
 		 uint8_t user);
 int dsk_add_file(dsk_type *dsk, const char *source_file,
-		 const char *target_name, amsdos_mode_type mode,
-		 uint8_t user);
+		 const char *target_name, uint8_t user);
+int dsk_add_ascii_file(dsk_type *dsk, const char *source_file, 
+		       const char *target_name, uint8_t user);
+int dsk_add_binary_file(dsk_type *dsk, const char *source_file,
+			const char *target_name, uint8_t user, 
+			uint16_t load_address, uint16_t entry_address);
 int dsk_remove_file(dsk_type *dsk, const char *name, uint8_t user);
 int dsk_dump_image(dsk_type *dsk, const char *destination);
 bool dsk_has_file(dsk_type *dsk, const char *name, uint8_t user);

@@ -155,22 +155,13 @@ static uint8_t base_track_index(dsk_type *dsk) {
 	int min_sector_id = first_sector_id(dsk);
 	switch (min_sector_id) {
 	case BASE_SECTOR_IBM:
-		return 1;
+		return RESERVED_SECTORS_IBM;
 	case BASE_SECTOR_SYS:
-		return 2;
+		return RESERVED_SECTORS_SYS;
 	default:
 		return 0;
 	}
 }	
-
-static uint32_t get_track_usable_blocks(dsk_type *dsk, uint8_t track) {
-	if (track < base_track_index(dsk)) {
-		return 0;
-	} else {
-		return get_track_size(dsk, track) - sizeof(track_info_type);
-	}
-}
-
 
 static uint32_t get_sector_offset_in_track(track_info_type *track, uint8_t sector_id) {
 	uint32_t offset = 0;
@@ -315,7 +306,10 @@ static void set_amsdos_checksum(amsdos_header_type *header) {
 
 static amsdos_header_type *init_amsdos_header(amsdos_header_type *header,
 					      const char *name, 
-					      uint16_t size) {
+					      uint16_t size,
+					      uint8_t user,
+					      uint16_t load_address,
+					      uint16_t entry_address) {
 	memset(header, 0, sizeof(amsdos_header_type));
 	/* Be aware that these functions set a NULL at end, 
 	 * but they can be used here because of the order
@@ -324,19 +318,23 @@ static amsdos_header_type *init_amsdos_header(amsdos_header_type *header,
 	 */
 	get_amsdos_filename(name, header->name);
 	get_amsdos_extension(name, header->extension);
+
 	header->data_length = 0;
 	header->logical_length = header->file_length = size;
 	header->type = AMSDOS_BINARY;
+	header->user = user;
+	header->load_address = load_address;
+	header->entry_address = entry_address;
 	set_amsdos_checksum(header);
 	return header;
 }
 
-static bool has_amsdos_header(uint8_t *stream) {
-	amsdos_header_type *header = (amsdos_header_type *) stream;
+static bool is_amsdos_header(amsdos_header_type *header) {
 	return header->checksum == get_amsdos_checksum(header);
 }
 
 static uint8_t get_free_dir_entry_count(dsk_type *dsk) {
+	LOG(LOG_DEBUG, "get_free_dir_entry_count");
 	uint8_t free_entries = 0;
 	dir_entry_type dir_entry;
 	for (int i = 0; i < NUM_DIRENT; i++) {
@@ -345,10 +343,12 @@ static uint8_t get_free_dir_entry_count(dsk_type *dsk) {
 			++free_entries;
 		}
 	}
+	LOG(LOG_TRACE, "Free dir entries: %d", free_entries);
 	return free_entries;
 }
 
 static int8_t get_next_free_dir_entry(dsk_type *dsk) {
+	LOG(LOG_DEBUG, "get_next_free_dir_entry");
 	dir_entry_type dir_entry;
 	for (int i = 0; i < NUM_DIRENT; i++) {
 		dsk_get_dir_entry(dsk, &dir_entry, i);
@@ -708,16 +708,6 @@ static bool is_block_in_use(dsk_type *dsk, uint8_t block) {
 	return false;
 }
 
-static uint32_t get_blocks_in_disk(dsk_type *dsk) {
-	if (dsk->total_blocks == 0) {
-		for (int i = 0; i < dsk->dsk_info->tracks; i++) {
-			dsk->total_blocks  += get_track_size(dsk, i) - 
-				sizeof(track_info_type);
-		}
-	}
-	return dsk->total_blocks;
-}
-
 static int8_t get_free_block(dsk_type *dsk) {
 	if (dsk->last_free_block == 0) {
 		uint8_t base_block = 0;
@@ -746,12 +736,20 @@ static int8_t get_free_block(dsk_type *dsk) {
 	return -1;
 }
 
-static void read_sector(dsk_type *dsk, FILE *fd, uint8_t sector) {
+static void read_sector(dsk_type *dsk, FILE *fd, 
+			amsdos_header_type *header, uint8_t sector) {
 	uint32_t offset = get_block_offset(dsk, sector);
 	if (offset > 0) {
-		LOG(LOG_DEBUG, "Writing block of size %d, offset %04x", SECTOR_SIZE, offset);
+		LOG(LOG_DEBUG, "Reading block of size %d to offset %04x", SECTOR_SIZE, offset);
 		uint8_t *dst = dsk->image + offset;
-		fread(dst, SECTOR_SIZE, 1, fd);
+		if (header) {
+			uint32_t header_size = sizeof(amsdos_header_type);
+			memcpy(dst, header, sizeof(amsdos_header_type));
+			fread(dst + header_size, 
+			      SECTOR_SIZE - header_size, 1, fd);
+		} else {
+			fread(dst, SECTOR_SIZE, 1, fd);
+		}
 	} else {
 		LOG(LOG_WARN, "Skipping sector %d", sector);
 	}
@@ -777,14 +775,11 @@ bool dsk_has_file(dsk_type *dsk, const char *name, uint8_t user) {
 	return get_dir_entry_for_file(dsk, name, user, &dir_entry) >= 0;
 }
 
-int dsk_add_file(dsk_type *dsk, const char *source_file, 
-		 const char *target_name, amsdos_mode_type mode,
-		 uint8_t user) {
 
-	LOG(LOG_DEBUG, "dsk_add_file(source=%s, target=%s, mode=%d, user=%u)",
-	    source_file, target_name, mode, user);
-	dsk_reset_error(dsk);
-
+static off_t add_file_checks(dsk_type *dsk, const char *source_file,
+			     const char *target_name, uint8_t user) {
+	LOG(LOG_DEBUG, "add_file_checks(source=%s, target=%s, user=%u)",
+	    source_file, target_name, user);
 	if (dsk_has_file(dsk, target_name, user)) {
 		dsk_set_error(dsk, "File %s(%d) already exists in dsk",
 			      target_name, user);
@@ -793,26 +788,32 @@ int dsk_add_file(dsk_type *dsk, const char *source_file,
 
 	off_t size = get_file_size(source_file);
 	LOG(LOG_TRACE, "File size is %d", size);
-
+	
 	if (size < 0) {
-		LOG(LOG_ERROR, "Unable to determine file size %s", source_file);
+		LOG(LOG_ERROR, "Unable to determine file size %s", 
+		    source_file);
 		dsk_set_error(dsk, "Unable to determine file size for %s",
 			      source_file);
 		return DSK_ERROR;
 	}
 
 	uint16_t free_dir_entries = get_free_dir_entry_count(dsk);
-	if (size > (free_dir_entries * SECTOR_SIZE * 2)) {
+	if (size > (free_dir_entries * AMSDOS_BLOCKS_DIRENT * 1024)) {
 		dsk_set_error(dsk, 
 			      "Not enough free directory entries %d", 
 			      free_dir_entries);
 		return DSK_ERROR;
 	}
+	return size;
+}	
 
-	/* TODO: Check if there are enough free blocks */
-	FILE *stream = fopen(source_file, "r");
+static int add_file_internal(dsk_type *dsk, amsdos_header_type *header,
+			     off_t size, FILE *stream, 
+			     const char *name, uint8_t user) {
+	LOG(LOG_DEBUG, "add_file_internal(size=%d, name=%s, user=%u)",
+	    size, name, user);
 	uint8_t extent = 0;
-	for (uint16_t pos = 0; pos < size;) {
+	for (off_t pos = 0; pos < size;) {
 		int8_t dir_entry_index = get_next_free_dir_entry(dsk);
 		if (dir_entry_index < 0) {
 			dsk_set_error(dsk, "Exhausted directory entries");
@@ -823,22 +824,30 @@ int dsk_add_file(dsk_type *dsk, const char *source_file,
 		dir_entry.user = user;
 		dir_entry.extent_low = extent++;
 		char buffer[AMSDOS_NAME_LEN + 1];
-		get_amsdos_filename(source_file, buffer);
+		get_amsdos_filename(name, buffer);
 		memcpy(dir_entry.name, buffer, AMSDOS_NAME_LEN);
-		get_amsdos_extension(source_file, buffer);
+		get_amsdos_extension(name, buffer);
 		memcpy(dir_entry.extension, buffer, AMSDOS_EXT_LEN);
-		/* Records are of 128bytes */
-		uint8_t records = MIN(128, (size - pos + 127) >> 7);
+		/* Records are of 128bytes 
+		   Blocks are of 1 Kbyte (2 sectors)
+		   The maximum blocks allocated per file are 16, what equals to
+		   16 block * (1 kbyte/block) * (8 records/kbyte) = 128 records
+		*/
+		uint8_t records = MIN(AMSDOS_RECORDS_DIRENT, 
+				      SHIFTH(size - pos, 7));
+		LOG(LOG_TRACE, "Records to write %d", records);
 		dir_entry.record_count = records;
 		/* Blocks are of 1Kbyte */
-		uint8_t blocks = (records + 7) >> 3;
+		uint8_t blocks = SHIFTH(records, 3);
 		for (int i = 0; i < blocks; i++) {
 			int8_t block = get_free_block(dsk);
 			if (block >= 0) {
 				dir_entry.blocks[i] = (uint8_t) block;
 				uint8_t sector = block << 1;
-				read_sector(dsk, stream, sector);
-				read_sector(dsk, stream, sector + 1);
+				read_sector(dsk, stream, header, sector);
+				/* header is added only once */
+				header = NULL;
+				read_sector(dsk, stream, NULL, sector + 1);
 				pos += SECTOR_SIZE << 1;
 			} else {
 				dsk_set_error(dsk, "Free blocks exhausted");
@@ -847,5 +856,109 @@ int dsk_add_file(dsk_type *dsk, const char *source_file,
 		}
 		dsk_set_dir_entry(dsk, &dir_entry, dir_entry_index);
 	}
-	return DSK_OK;
+	return DSK_OK;	
+}
+
+int dsk_add_file(dsk_type *dsk, const char *source_file, 
+		 const char *target_name,
+		 uint8_t user) {
+
+	LOG(LOG_DEBUG, "dsk_add_file(source=%s, target=%s, user=%u)",
+	    source_file, target_name, user);
+	dsk_reset_error(dsk);
+
+	off_t size;
+	if ((size = add_file_checks(dsk, source_file, 
+				    target_name, user)) < DSK_OK) {
+		LOG(LOG_ERROR, "In file checks %s", dsk_get_error(dsk));
+		return DSK_ERROR;
+	}
+
+	FILE *stream = fopen(source_file, "r");
+	int retcode = add_file_internal(dsk, NULL, size, stream, 
+					target_name, user);
+	fclose(stream);
+	return retcode;
+}
+
+int dsk_add_binary_file(dsk_type *dsk, const char *source_file,
+			const char *target_name, uint8_t user, 
+			uint16_t load_address, uint16_t entry_address) {
+
+	LOG(LOG_DEBUG, "dsk_add_binary_file(source=%s, target=%s, user=%u, load_address=0x%04x, entry_address=0x%04x)",
+	    source_file, target_name, user,
+	    load_address, entry_address);
+
+	dsk_reset_error(dsk);
+	off_t size;
+	if ((size = add_file_checks(dsk, source_file, 
+				    target_name, user)) < DSK_OK) {
+		LOG(LOG_ERROR, "In file checks %s", dsk_get_error(dsk));
+		return DSK_ERROR;
+	}
+
+	/* Check if we have an amsdos header and modify it accordingly
+	   to the provided addresses when they are defined
+	   Otherwise, provide a new header
+	*/
+	FILE *stream = fopen(source_file, "r");
+	amsdos_header_type header;
+	size_t nread = fread(&header, sizeof(amsdos_header_type), 1, stream);
+	if (nread < 1) {
+		dsk_set_error(dsk, "Unable to read header from file %s. %s",
+			      source_file, strerror(errno));
+		fclose(stream);
+		return DSK_ERROR;
+	}
+	if (!is_amsdos_header(&header)) {
+		LOG(LOG_DEBUG, "No AMSDOS header found. Creating a new one");
+		size += sizeof(amsdos_header_type);
+		rewind(stream);
+	}
+	init_amsdos_header(&header, target_name, size,
+			   user, load_address, 
+			   entry_address);
+	int retcode = add_file_internal(dsk, &header, size, stream, 
+					target_name, user);
+	fclose(stream);
+	return retcode;
+}
+
+int dsk_add_ascii_file(dsk_type *dsk, const char *source_file, 
+		       const char *target_name, uint8_t user) {
+
+	LOG(LOG_DEBUG, "dsk_add_ascii_file(source=%s, target=%s, user=%u)",
+	    source_file, target_name, user);
+	dsk_reset_error(dsk);
+	off_t size;
+	if ((size = add_file_checks(dsk, source_file, 
+				    target_name, user)) < DSK_OK) {
+		LOG(LOG_ERROR, "In file checks %s", dsk_get_error(dsk));
+		return DSK_ERROR;
+	}
+
+	/*
+	 * Strip the AMSDOS header if it exists
+	 */
+	FILE *stream = fopen(source_file, "r");
+	amsdos_header_type header;
+	size_t nread = fread(&header, sizeof(amsdos_header_type), 1, stream);
+	if (nread < 1) {
+		dsk_set_error(dsk, "Unable to read header from file %s. %s",
+			      source_file, strerror(errno));
+		fclose(stream);
+		return DSK_ERROR;
+	}
+	if (!is_amsdos_header(&header)) {
+		LOG(LOG_DEBUG, "No AMSDOS header found. Nothing stripped");
+		rewind(stream);
+	} else {
+		LOG(LOG_WARN, "Stripping AMSDOS header from file");
+		size -= sizeof(amsdos_header_type);
+	}
+
+	int retcode = add_file_internal(dsk, &header, size, stream, 
+					target_name, user);
+	fclose(stream);
+	return retcode;
 }
