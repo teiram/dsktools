@@ -23,7 +23,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <string.h>
-#include "dsk.h"
+#include "amsdos.h"
 #include "log.h"
 
 typedef enum {
@@ -49,24 +49,21 @@ static int help_exit(const char *message, int exitcode) {
         return exitcode;
 }
 
-int info_dsk(const char *filename) {
-	dsk_type *dsk = dsk_new(filename);
-	if (dsk) {
-		char id[35];
-		char creator[15];
-		strncpy(id, dsk->dsk_info->magic, 34);
-		id[34] = 0;
-		strncpy(creator, dsk->dsk_info->creator, 14);
-		creator[14] = 0;
-		printf("Disk id\t\t: %s\n", id);
-		printf("Creator\t\t: %s\n", creator);
-		printf("Tracks\t\t: %6d\n", dsk->dsk_info->tracks);
-		printf("Sides\t\t: %6d\n", dsk->dsk_info->sides);
-		printf("Total size\t: %6d bytes\n", dsk_get_total_bytes(dsk));
-		printf("Used\t\t: %6d bytes\n", dsk_get_used_bytes(dsk));
-		dsk_delete(dsk);
+int get_info(const char *filename) {
+	amsdos_type *amsdos = amsdos_new(filename);
+	if (amsdos) {
+		amsdos_info_type info;
+		amsdos_info_get(amsdos, info);
+		printf("Disk id\t\t: %s\n", info.dsk_info.magic);
+		printf("Creator\t\t: %s\n", info.dsk_info.creator);
+		printf("Tracks\t\t: %6d\n", info.dsk_info.tracks);
+		printf("Sides\t\t: %6d\n", info.dsk_info.sides);
+		printf("Sectors\t\t: %6d\n", info.dsk_info.sectors);
+		printf("First sector\t\t: 0x%02x\n", info.dsk_info.first_sector_id);
+		printf("Total size\t: %6d bytes\n", info.dsk_info.capacity);
+		printf("Used\t\t: %6d bytes\n", info.used);
+		amsdos_delete(amsdos);
 		return DSK_OK;
-
 	} else {
 		return DSK_ERROR;
 	}

@@ -29,26 +29,15 @@
 #define DSK_HEADER "MV - CPC"
 #define EDSK_HEADER "EXTENDED CPC DSK File"
 #define DSK_TRACK_HEADER "Track-Info\r\n"
-#define NUM_DIRENT              64
-#define AMSDOS_NAME_LEN         8
-#define AMSDOS_EXT_LEN          3
 #define BASE_SECTOR_SIZE        128
-#define SECTOR_SIZE             512
-#define AMSDOS_BLOCK_SIZE       (SECTOR_SIZE << 1)
-#define AMSDOS_USER_DELETED     0xE5
-#define AMSDOS_RECORD_SIZE      128
-#define AMSDOS_BLOCKS_DIRENT    16
-#define AMSDOS_RECORDS_DIRENT   128 
-#define AMSDOS_BINARY 2
 #define DSK_ERROR_SIZE 256
 #define DSK_OK 0
 #define DSK_ERROR -1
 
-#define BASE_SECTOR_IBM 0x01
-#define RESERVED_SECTORS_IBM 1
-#define BASE_SECTOR_SYS 0x41
-#define RESERVED_SECTORS_SYS 2
-#define BASE_SECTOR_DATA 0xC1
+typedef enum {
+	DSK,
+	EDSK
+} dsk_image_type;
 
 typedef struct {
 	char magic[34];
@@ -57,6 +46,17 @@ typedef struct {
 	uint8_t sides;
 	uint8_t track_size[2];
 	uint8_t track_size_high[204]; /* Only for EDSK */
+} dsk_header_type;
+
+typedef struct {
+	char magic[35];
+	char creator[15];
+	dsk_image_type type;
+	uint8_t tracks;
+	uint8_t sides;
+	uint32_t capacity;
+	uint32_t sectors;
+	uint8_t first_sector_id;
 } dsk_info_type;
 
 typedef struct {
@@ -80,79 +80,29 @@ typedef struct {
 	uint8_t gap3_length;
 	uint8_t unused2;
 	sector_info_type sector_info[29];
-} track_info_type;
-
-typedef struct {
-	uint8_t user;
-	char name[AMSDOS_NAME_LEN];
-	uint8_t extension[AMSDOS_EXT_LEN];
-	uint8_t extent_low;
-	uint8_t extent_high;
-	uint8_t unused;
-	uint8_t record_count;
-	uint8_t blocks[AMSDOS_BLOCKS_DIRENT];
-} dir_entry_type;
-
-typedef enum {
-	ASCII,
-	BINARY
-} amsdos_mode_type;
-
-typedef struct {
-	uint8_t user;
-	char name[AMSDOS_NAME_LEN];
-	char extension[AMSDOS_EXT_LEN];
-	uint8_t unused0[4];
-	uint8_t block_number;
-	uint8_t last_block;
-	uint8_t type;
-	uint8_t data_length;
-	uint8_t load_address;
-	uint8_t first_block;
-	uint16_t logical_length;
-	uint8_t entry_address;
-	uint8_t unused1[36];
-	uint16_t file_length;
-	uint8_t unused2;
-	uint16_t checksum;
-	uint8_t unused3[59];
-} amsdos_header_type;
+} track_header_type;
 
 typedef struct {
 	uint8_t *image;
-	dsk_info_type *dsk_info;
-	track_info_type **track_info;
+	dsk_header_type *dsk_info;
+	track_header_type **track_info;
 	char *error;
-	uint32_t total_blocks;
-	uint8_t last_free_block;
 } dsk_type;
- 
+
 dsk_type *dsk_new(const char *filename);
 void dsk_delete(dsk_type *dsk);
-uint32_t dsk_get_total_bytes(dsk_type *dsk);
-uint32_t dsk_get_used_bytes(dsk_type *dsk);
-char *dsk_get_error(dsk_type *dsk);
-track_info_type *dsk_get_track_info(dsk_type *dsk, 
-				    uint8_t track);
-
-dir_entry_type *dsk_get_dir_entry(dsk_type *dsk, 
-				  dir_entry_type *dir_entry, 
-				  int index);
-
-bool is_dir_entry_deleted(dir_entry_type *dir_entry);
-char *dir_entry_get_name(dir_entry_type *dir_entry, char *buffer);
-uint32_t dir_entry_get_size(dir_entry_type* dir_entries, int index);
-int dsk_get_file(dsk_type *dsk, const char *name, const char *destination,
-		 uint8_t user);
-int dsk_add_file(dsk_type *dsk, const char *source_file,
-		 const char *target_name, uint8_t user);
-int dsk_add_ascii_file(dsk_type *dsk, const char *source_file, 
-		       const char *target_name, uint8_t user);
-int dsk_add_binary_file(dsk_type *dsk, const char *source_file,
-			const char *target_name, uint8_t user, 
-			uint16_t load_address, uint16_t entry_address);
-int dsk_remove_file(dsk_type *dsk, const char *name, uint8_t user);
-int dsk_dump_image(dsk_type *dsk, const char *destination);
-bool dsk_has_file(dsk_type *dsk, const char *name, uint8_t user);
-
+const char *dsk_error_get(dsk_type *dsk);
+dsk_info_type *dsk_info_get(dsk_type *dsk, dsk_info_type *info);
+uint32_t dsk_sector_offset_get(dsk_type *dsk, 
+			       uint8_t track_id, uint8_t side, 
+			       uint8_t sector_id);
+track_header_type *dsk_track_info_get(dsk_type *dsk,
+				      uint8_t track);
+int dsk_image_dump(dsk_type *dsk, const char *destination);
+int dsk_sector_write(dsk_type *dsk, const uint8_t *src, uint8_t sector);
+int dsk_write(dsk_type *dsk, const uint8_t *src, uint8_t sector, 
+	      uint32_t size);
+uint32_t dsk_track_size_get(dsk_type *dsk, uint8_t track);
+int dsk_sector_read(dsk_type *dsk, uint8_t *dst, uint8_t sector);
+int dsk_read(dsk_type *dsk, uint8_t *dst, uint8_t sector, uint32_t size);
 #endif //DSK_H

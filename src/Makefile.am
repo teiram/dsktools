@@ -4,5 +4,5 @@ AM_LDFLAGS =
 bin_PROGRAMS = dskread dskwrite dskmgmt
 dskread_SOURCES = common.c dskread.c log.c
 dskwrite_SOURCES = common.c dskwrite.c log.c
-dskmgmt_SOURCES = dsk.c log.c dskmgmt.c
+dskmgmt_SOURCES = dsk.c amsdos.c log.c dskmgmt.c
 
