@@ -62,8 +62,8 @@ int info_dsk(const char *filename) {
 		printf("Creator\t\t: %s\n", creator);
 		printf("Tracks\t\t: %6d\n", dsk->dsk_info->tracks);
 		printf("Sides\t\t: %6d\n", dsk->dsk_info->sides);
-		printf("Total size\t: %6d bytes\n", dsk_get_total_blocks(dsk));
-		printf("Used\t\t: %6d bytes\n", dsk_get_used_blocks(dsk));
+		printf("Total size\t: %6d bytes\n", dsk_get_total_bytes(dsk));
+		printf("Used\t\t: %6d bytes\n", dsk_get_used_bytes(dsk));
 		dsk_delete(dsk);
 		return DSK_OK;
 

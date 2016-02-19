@@ -32,6 +32,7 @@
 #define NUM_DIRENT              64
 #define AMSDOS_NAME_LEN         8
 #define AMSDOS_EXT_LEN          3
+#define BASE_SECTOR_SIZE        128
 #define SECTOR_SIZE             512
 #define AMSDOS_BLOCK_SIZE       (SECTOR_SIZE << 1)
 #define AMSDOS_USER_DELETED     0xE5
@@ -128,8 +129,8 @@ typedef struct {
  
 dsk_type *dsk_new(const char *filename);
 void dsk_delete(dsk_type *dsk);
-uint32_t dsk_get_total_blocks(dsk_type *dsk);
-uint32_t dsk_get_used_blocks(dsk_type *dsk);
+uint32_t dsk_get_total_bytes(dsk_type *dsk);
+uint32_t dsk_get_used_bytes(dsk_type *dsk);
 char *dsk_get_error(dsk_type *dsk);
 track_info_type *dsk_get_track_info(dsk_type *dsk, 
 				    uint8_t track);

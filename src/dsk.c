@@ -517,31 +517,43 @@ void dsk_set_dir_entry(dsk_type *dsk,
 	}
 }
 
-uint32_t dsk_get_total_blocks(dsk_type *dsk) {
+static uint32_t dsk_get_total_blocks(dsk_type *dsk) {
 	uint32_t blocks = 0;
 	for (int i = 0; i < dsk->dsk_info->tracks; i++) {
 		track_info_type *track = 
 			dsk_get_track_info(dsk, i);
-		blocks += track->sector_count * track->sector_size;
+		//Each AMSDOS block(1024Bytes) comprises 2 sectors(512bytes)
+		blocks += track->sector_count * 
+			(track->sector_size >> 1);
 	}
-	blocks <<= 7; /* Each block has 128bytes */
 	LOG(LOG_TRACE, "Total blocks in disk %u", blocks);
 	return blocks;
 }
 
-uint32_t dsk_get_used_blocks(dsk_type *dsk) {
+uint32_t dsk_get_total_bytes(dsk_type *dsk) {
+	uint32_t bytes = 0;
+	for (int i = 0; i < dsk->dsk_info->tracks; i++) {
+		track_info_type *track = 
+			dsk_get_track_info(dsk, i);
+		bytes += track->sector_count * 
+			(BASE_SECTOR_SIZE << track->sector_size);
+	}
+	LOG(LOG_TRACE, "Total bytes in disk %u", bytes);
+	return bytes;
+}
+
+uint32_t dsk_get_used_bytes(dsk_type *dsk) {
 	int i;
 	dir_entry_type dir_entry;
-	uint32_t blocks = 0;
+	uint32_t bytes = 0;
 	for (i = 0; i < NUM_DIRENT; i++) {
 		dsk_get_dir_entry(dsk, &dir_entry, i);
 		if (!is_dir_entry_deleted(&dir_entry)) {
-			blocks += dir_entry.record_count;
+			bytes += (dir_entry.record_count << 7);
 		}
 	}
-	blocks <<= 7;
-	LOG(LOG_TRACE, "Used blocks in disk %u", blocks);
-	return blocks;
+	LOG(LOG_TRACE, "Used bytes in disk %u", bytes);
+	return bytes;
 }
 
 int8_t get_dir_entry_for_file(dsk_type *dsk, 
@@ -589,7 +601,8 @@ void write_entry_blocks(dsk_type *dsk, FILE *fd, dir_entry_type *dir_entry) {
 	    dir_entry->extent_low,
 	    dir_entry->record_count);
 	    
-	int block_count = (dir_entry->record_count + 7) >> 3;
+	//int block_count = (dir_entry->record_count + 7) >> 3;
+	int block_count = SHIFTH(dir_entry->record_count, 3);
 	LOG(LOG_TRACE, "Block count is %d", block_count);
 	for (i = 0; i < block_count; i++) {
 		if (dir_entry->blocks[i] > 0) {
