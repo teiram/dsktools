@@ -53,15 +53,19 @@ int get_info(const char *filename) {
 	amsdos_type *amsdos = amsdos_new(filename);
 	if (amsdos) {
 		amsdos_info_type info;
-		amsdos_info_get(amsdos, info);
+		amsdos_info_get(amsdos, &info);
+		printf("DSK type\t: %s\n", info.dsk_info.type == DSK ? 
+		       "DSK" : "EDSK");
 		printf("Disk id\t\t: %s\n", info.dsk_info.magic);
 		printf("Creator\t\t: %s\n", info.dsk_info.creator);
-		printf("Tracks\t\t: %6d\n", info.dsk_info.tracks);
-		printf("Sides\t\t: %6d\n", info.dsk_info.sides);
-		printf("Sectors\t\t: %6d\n", info.dsk_info.sectors);
-		printf("First sector\t\t: 0x%02x\n", info.dsk_info.first_sector_id);
+		printf("Disk type\t: %s\n",  AMSDOS_DISK_TYPE(info.type));
+		printf("Tracks\t\t: %4d\n", info.dsk_info.tracks);
+		printf("Sides\t\t: %4d\n", info.dsk_info.sides);
+		printf("Sectors\t\t: %4d\n", info.dsk_info.sectors);
+		printf("First sector id\t: 0x%02X\n", info.dsk_info.first_sector_id);
 		printf("Total size\t: %6d bytes\n", info.dsk_info.capacity);
 		printf("Used\t\t: %6d bytes\n", info.used);
+
 		amsdos_delete(amsdos);
 		return DSK_OK;
 	} else {
@@ -70,33 +74,33 @@ int get_info(const char *filename) {
 }
 
 int list_dsk(const char *filename) {
-	dsk_type *dsk = dsk_new(filename);
-	if (dsk) {
-		dir_entry_type dir_entries[NUM_DIRENT];
+	amsdos_type *amsdos = amsdos_new(filename);
+	if (amsdos) {
+		amsdos_dir_type dir_entries[AMSDOS_NUM_DIRENT];
 		char buffer[13];
-		for (int i = 0; i < NUM_DIRENT; i++) {
-			dsk_get_dir_entry(dsk, &dir_entries[i], i);
+		for (int i = 0; i < AMSDOS_NUM_DIRENT; i++) {
+			amsdos_dir_get(amsdos, &dir_entries[i], i);
 			LOG(LOG_DEBUG, 
 			    "Entry for user %d, name %s, extent %d, records %u", 
 			    dir_entries[i].user,
-			    dir_entry_get_name(&dir_entries[i], buffer),
+			    amsdos_dir_name_get(&dir_entries[i], buffer),
 			    dir_entries[i].extent_low,
 			    dir_entries[i].record_count);
 		}
-		for (int i = 0; i < NUM_DIRENT; i++) {
-			dir_entry_type *dir_entry = &dir_entries[i];
-
-			if (!is_dir_entry_deleted(dir_entry) && 
+		for (int i = 0; i < AMSDOS_NUM_DIRENT; i++) {
+			amsdos_dir_type *dir_entry = &dir_entries[i];
+			
+			if (!amsdos_dir_deleted(dir_entry) && 
 			    dir_entry->extent_low == 0 &&
 			    dir_entry->record_count > 0) {
 
 				fprintf(stderr, "%s (user %d) %6d bytes\n", 
-					dir_entry_get_name(dir_entry, buffer),
+					amsdos_dir_name_get(dir_entry, buffer),
 					dir_entry->user,
-					dir_entry_get_size(dir_entries, i));
+					amsdos_dir_size_get(dir_entries, i));
 			}
 		}
-		dsk_delete(dsk);
+		amsdos_delete(amsdos);
 		return DSK_OK;
 	} else {
 		return DSK_ERROR;
@@ -105,54 +109,56 @@ int list_dsk(const char *filename) {
 
 int export_dsk(const char *dsk_filename, const char *amsdos_filename, 
 	       const char *dst_filename, uint8_t user) {
-	dsk_type *dsk = dsk_new(dsk_filename);
-	if (dsk) {
-		int status = dsk_get_file(dsk, amsdos_filename, 
-					  dst_filename ? dst_filename : amsdos_filename,
-					   user);
+	amsdos_type *amsdos = amsdos_new(dsk_filename);
+	if (amsdos) {
+		int status = amsdos_file_get(amsdos, amsdos_filename, user,
+					     dst_filename ? dst_filename : amsdos_filename);
 		if (status != DSK_OK) {
-			fprintf(stderr, "Failure: %s\n", dsk_get_error(dsk));
+			fprintf(stderr, "Failure: %s\n", 
+				amsdos_error_get(amsdos));
 		} 
-		dsk_delete(dsk);
+		amsdos_delete(amsdos);
 		return status;
 	} else {
-		fprintf(stderr, "Unable to open DSK\n");
+		fprintf(stderr, "Unable to open AMSDOS filesystem\n");
 		return DSK_ERROR;
 	}
 }
 
 int add_to_dsk(const char *dsk_filename, const char *source_file,
 	       const char *dst_filename, uint8_t user) {
-	dsk_type *dsk = dsk_new(dsk_filename);
-	if (dsk) {
-		int status = dsk_add_file(dsk, source_file,
-					  source_file, user);
+	amsdos_type *amsdos = amsdos_new(dsk_filename);
+	if (amsdos) {
+		int status = amsdos_file_add(amsdos, source_file,
+					     source_file, user);
 		if (status != DSK_OK) {
-			fprintf(stderr, "Failure: %s\n", dsk_get_error(dsk));
+			fprintf(stderr, "Failure: %s\n", 
+				amsdos_error_get(amsdos));
 		} else {
-			dsk_dump_image(dsk, dst_filename);
+			dsk_image_dump(amsdos->dsk, dst_filename);
 		}
-		dsk_delete(dsk);
+		amsdos_delete(amsdos);
 		return status;
 	} else {
-		fprintf(stderr, "Unable to open DSK\n");
+		fprintf(stderr, "Unable to open AMSDOS filesystem\n");
 		return DSK_ERROR;
 	}
 }
 
 int remove_from_dsk(const char *dsk_filename, const char *amsdos_filename,
                     const char *dst_filename, uint8_t user) {
-        dsk_type *dsk = dsk_new(dsk_filename);
-        if (dsk) {
-                int status = dsk_remove_file(dsk, amsdos_filename, user);
+        amsdos_type *amsdos = amsdos_new(dsk_filename);
+        if (amsdos) {
+                int status = amsdos_file_remove(amsdos, amsdos_filename, user);
                 if (status != DSK_OK) {
-                        fprintf(stderr, "Failure: %s\n", dsk_get_error(dsk));
+                        fprintf(stderr, "Failure: %s\n", 
+				amsdos_error_get(amsdos));
                 } else {
-			dsk_dump_image(dsk, dst_filename);
+			dsk_image_dump(amsdos->dsk, dst_filename);
 		}
                 return status;
         } else {
-                fprintf(stderr, "Unable to open DSK\n");
+                fprintf(stderr, "Unable to open AMSDOS filesystem\n");
                 return DSK_ERROR;
         }
 }
@@ -223,7 +229,7 @@ int main(int argc, char *argv[]) {
         case LIST:
                 return list_dsk(dsk_filename);
         case INFO:
-                return info_dsk(dsk_filename);
+                return get_info(dsk_filename);
         case EXPORT:
                 return export_dsk(dsk_filename, target_filename,
                                   output_filename, target_user);

@@ -4,8 +4,10 @@
 AC_PREREQ([2.69])
 AC_INIT(dsktools, 0.3,)
 AM_INIT_AUTOMAKE(dsktools, 0.3)
+LT_INIT
 AC_CONFIG_SRCDIR([src/dskmgmt.c])
 AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_MACRO_DIR([m4])
 
 # Checks for programs.
 AC_PROG_CC

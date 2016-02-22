@@ -40,6 +40,18 @@
 #define BASE_SECTOR_DATA 0xC1
 #define AMSDOS_SECTOR_SIZE 512
 
+#define AMSDOS_DISK_TYPE(type) \
+	type == DISK_TYPE_DATA ? "DATA" : \
+		type == DISK_TYPE_IBM ? "IBM" : \
+		type == DISK_TYPE_SYSTEM ? "SYSTEM" : "UNKNOWN"
+
+typedef enum {
+	DISK_TYPE_DATA = 0,
+	DISK_TYPE_IBM = 1,
+	DISK_TYPE_SYSTEM = 2,
+	DISK_TYPE_UNKNOWN
+} amsdos_disk_type;
+
 typedef struct {
 	uint8_t user;
 	char name[AMSDOS_NAME_LEN];
@@ -80,22 +92,30 @@ typedef struct {
 typedef struct {
 	dsk_info_type dsk_info;
 	uint32_t used;
+	amsdos_disk_type type;
 } amsdos_info_type;
 
 amsdos_type *amsdos_new(const char *filename);
 void amsdos_delete(amsdos_type *amsdos);
-amsdos_info_type *amsdos_info_get(amsdos_type *amsdos, amsdos_info_type *info);
-uint32_t amsdos_formatted_bytes(amsdos_type *amsdos);
-uint32_t amsdos_used_bytes(amsdos_type *amsdos);
-char *amsdos_get_error(amsdos_type *amsdos);
-amsdos_dir_type *amsdos_dir_entry_get(amsdos_type *amsdos,
-				      amsdos_dir_type *dir_entry, 
-				      int index);
 
-bool amsdos_dir_entry_deleted(amsdos_dir_type *dir_entry);
+amsdos_info_type *amsdos_info_get(amsdos_type *amsdos, amsdos_info_type *info);
+
+char *amsdos_error_get(amsdos_type *amsdos);
+
+amsdos_dir_type *amsdos_dir_get(amsdos_type *amsdos,
+				amsdos_dir_type *dir_entry, 
+				int index);
+void amsdos_dir_set(amsdos_type *amsdos,
+		    amsdos_dir_type *dir_entry,
+		    int index);
+char *amsdos_dir_name_get(amsdos_dir_type *dir, char *buffer);
+uint32_t amsdos_dir_size_get(amsdos_dir_type* dir_entries, int index);
+bool amsdos_dir_deleted(amsdos_dir_type *dir_entry);
+
 int amsdos_file_get(amsdos_type *amsdos, const char *name, 
 		    uint8_t user,
 		    const char *destination);
+
 int amsdos_file_add(amsdos_type *amsdos, const char *source_file,
 		    const char *target_file, uint8_t user);
 int amsdos_ascii_file_add(amsdos_type *amsdos, const char *source_file, 

@@ -345,6 +345,7 @@ dsk_info_type *dsk_info_get(dsk_type *dsk, dsk_info_type *info) {
 		info->sides = dsk->dsk_info->sides;
 		info->capacity = get_capacity(dsk);
 		info->sectors = get_sector_count(dsk);
+		info->first_sector_id = first_sector_id(dsk);
 		return info;
 	} else {
 		LOG(LOG_ERROR, "Unable to get info from unitialized dsk");

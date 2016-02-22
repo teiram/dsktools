@@ -1,8 +1,15 @@
 AM_CFLAGS = -Wall -std=c99 -D_POSIX_C_SOURCE=200809L -O2
 AM_LDFLAGS = 
 
+lib_LTLIBRARIES = libdsk.la
+libdsk_la_SOURCES = dsk.c amsdos.c log.c
+include_HEADERS = dsk.h amsdos.h log.h
+
 bin_PROGRAMS = dskread dskwrite dskmgmt
-dskread_SOURCES = common.c dskread.c log.c
-dskwrite_SOURCES = common.c dskwrite.c log.c
-dskmgmt_SOURCES = dsk.c amsdos.c log.c dskmgmt.c
+dskread_SOURCES = common.c dskread.c
+dskwrite_SOURCES = common.c dskwrite.c
+dskmgmt_SOURCES = dskmgmt.c
+dskmgmt_LDADD = libdsk.la
+dskread_LDADD = libdsk.la
+dskwrite_LDADD = libdsk.la
 

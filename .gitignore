@@ -3,6 +3,14 @@ dskread
 dskmgmt
 *.o
 *~
+*.la
+*.lo
+.libs
+m4
+config.guess
+config.sub
+libtool
+ltmain.sh
 configure
 Makefile
 Makefile.in
