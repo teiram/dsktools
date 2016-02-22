@@ -39,13 +39,17 @@ fddriver_type *fddriver_new(const char *device) {
 		char *endp;
 		fddriver->drive_number = strtol(ptr + 1, &endp, 10);
 		if ((endp - ptr) > 1) {
-			LOG(LOG_ERROR, "Unable to extract drive number from device string %s", device);
+			LOG(LOG_ERROR, 
+			    "Unable to extract drive number from device %s", 
+			    device);
 			return NULL;
 		} else {
-			LOG(LOG_TRACE, "Drive Number is %u", fddriver->drive_number);
+			LOG(LOG_TRACE, "Drive Number is %u", 
+			    fddriver->drive_number);
 		}
 	} else {
-		LOG(LOG_ERROR, "Unable to extract drive number from device string %s", device);
+		LOG(LOG_ERROR, 
+		    "Unable to extract drive number from device %s", device);
 		return NULL;
 	}
 	fddriver->fd = open(device, O_ACCMODE | O_NDELAY);
@@ -136,7 +140,8 @@ int fddriver_format_track(fddriver_type *fddriver, track_header_type *track) {
 		return DSK_ERROR;
 	}
 	if (raw_cmd.reply[0] & 0x40) {
-		LOG(LOG_ERROR, "Could not format track %i", track);
+		LOG(LOG_ERROR, "Could not format track %i", 
+		    track->track_number);
 		return DSK_ERROR;
 	}
 	return DSK_OK;

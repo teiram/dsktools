@@ -33,6 +33,7 @@
 
 #include "dsk.h"
 #include "log.h"
+#include "fddriver.h"
 
 static void dsk_error_set(dsk_type *dsk, const char *fmt, ...) {
 	if (dsk) {
@@ -415,4 +416,46 @@ int dsk_image_dump(dsk_type *dsk, const char *destination) {
                 return DSK_ERROR;
         }
 }
+
+int dsk_disk_write(dsk_type *dsk, const char *device) {
+
+	fddriver_type *fddriver = fddriver_new(device);
+	if (fddriver == NULL) {
+		dsk_error_set(dsk, "Unable to instantiate fd driver");
+		return DSK_ERROR;
+	}
+
+	for (int i = 0; i < dsk->dsk_info->tracks; i++) {
+		for (int j = 0; j < dsk->dsk_info->sides; j++) {
+			track_header_type *track = dsk_track_info_get(dsk, i + j);
+			if (fddriver_format_track(fddriver, track) != DSK_OK) {
+				LOG(LOG_ERROR, "Formatting track");
+				fddriver_delete(fddriver);
+				return DSK_ERROR;
+			}
+			for (int k = 0; k < track->sector_count; k++) {
+				sector_info_type *sector_info = 
+					&track->sector_info[k];
+				LOG(LOG_TRACE, "Writing side/track/sector %02x/%02x/%02x", 
+				    track->side_number,
+				    track->track_number,
+				    sector_info->sector_id);
+				uint8_t *data = dsk->image + 
+					dsk_sector_offset_get(dsk, i, j, 
+							      sector_info->sector_id);
+							      
+				if (fddriver_sector_write(fddriver, track, k,
+							  data) != DSK_OK) {
+					LOG(LOG_ERROR, "Writing sector to disk");
+					dsk_error_set(dsk, "Writing sector to disk");
+					fddriver_delete(fddriver);
+					return DSK_ERROR;
+				}
+			}
+		}
+	}
+	fddriver_delete(fddriver);
+	return DSK_OK;
+}
+			
 

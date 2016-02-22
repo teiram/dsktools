@@ -31,7 +31,8 @@ typedef enum {
 	INFO,
 	EXPORT,
 	REMOVE,
-	ADD
+	ADD,
+	WRITE
 } option_type;
 
 static int help_exit(const char *message, int exitcode) {
@@ -125,6 +126,22 @@ int export_dsk(const char *dsk_filename, const char *amsdos_filename,
 	}
 }
 
+int write_dsk(const char *dsk_filename, const char *device) {
+	dsk_type *dsk = dsk_new(dsk_filename);
+	if (dsk) {
+		int status = dsk_disk_write(dsk, device);
+		if (status != DSK_OK) {
+			fprintf(stderr, "Failure: %s\n", 
+				dsk_error_get(dsk));
+		}
+		dsk_delete(dsk);
+		return status;
+	} else {
+		fprintf(stderr, "Unable to open DSK image\n");
+		return DSK_ERROR;
+	}
+}
+
 int add_to_dsk(const char *dsk_filename, const char *source_file,
 	       const char *dst_filename, uint8_t user) {
 	amsdos_type *amsdos = amsdos_new(dsk_filename);
@@ -173,6 +190,7 @@ int main(int argc, char *argv[]) {
                 {"destination", 1, 0, 'o'},
                 {"remove", 1, 0, 'r'},
                 {"add", 1, 0, 'a'},
+                {"write", 1, 0, 'w'},
                 {0, 0, 0, 0}
         };
         int c;
@@ -184,7 +202,7 @@ int main(int argc, char *argv[]) {
 
         do {
                 int option_index = 0;
-                c = getopt_long(argc, argv, "lie:u:o:r:a:h",
+                c = getopt_long(argc, argv, "lie:u:o:r:a:w:h",
 				long_options, &option_index);
                 switch(c) {
                 case 'h':
@@ -215,6 +233,9 @@ int main(int argc, char *argv[]) {
                         option = REMOVE;
                         target_filename = optarg;
                         break;
+		case 'w':
+			option = WRITE;
+			target_filename = optarg;
                 }
         } while (c != -1);
 
@@ -239,6 +260,8 @@ int main(int argc, char *argv[]) {
 	case ADD:
 		return add_to_dsk(dsk_filename, target_filename,
 				  output_filename, target_user);
+	case WRITE:
+		return write_dsk(dsk_filename, target_filename);
         }
         return result;
 }
