@@ -66,7 +66,8 @@ typedef struct {
 	uint8_t size;
 	uint8_t fdc_status_1;
 	uint8_t fdc_status_2;
-	uint16_t unused;
+	uint8_t unused1;
+	uint8_t unused2;
 } sector_info_type;
 
 typedef struct {
@@ -100,9 +101,7 @@ track_header_type *dsk_track_info_get(dsk_type *dsk,
 				      uint8_t track);
 int dsk_image_dump(dsk_type *dsk, const char *destination);
 int dsk_sector_write(dsk_type *dsk, const uint8_t *src, uint8_t sector);
-int dsk_write(dsk_type *dsk, const uint8_t *src, uint8_t sector, 
-	      uint32_t size);
 uint32_t dsk_track_size_get(dsk_type *dsk, uint8_t track);
 int dsk_sector_read(dsk_type *dsk, uint8_t *dst, uint8_t sector);
-int dsk_read(dsk_type *dsk, uint8_t *dst, uint8_t sector, uint32_t size);
+int dsk_disk_write(dsk_type *dsk, const char *device);
 #endif //DSK_H

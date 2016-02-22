@@ -356,17 +356,12 @@ dsk_info_type *dsk_info_get(dsk_type *dsk, dsk_info_type *info) {
 int dsk_sector_write(dsk_type *dsk, const uint8_t *src, uint8_t sector) {
 	track_header_type *track = get_sector_track_info(dsk, sector);
 	uint32_t sector_size = 128 << track->sector_size;
-	return dsk_write(dsk, src, sector, sector_size);
-}
-
-int dsk_write(dsk_type *dsk, const uint8_t *src, uint8_t sector, 
-	      uint32_t size) {
 	int32_t offset = get_sector_offset(dsk, sector);
 	if (offset >= 0) {
 		LOG(LOG_DEBUG, "Writing block of size %d, offset %04x", 
-		    size, offset);
+		    sector_size, offset);
 		uint8_t *dst = dsk->image + offset;
-		memcpy(dst, src, size);
+		memcpy(dst, src, sector_size);
 		return DSK_OK;
 	} else {
 		dsk_error_set(dsk, "Unable to calculate offset for sector %u",
@@ -378,16 +373,12 @@ int dsk_write(dsk_type *dsk, const uint8_t *src, uint8_t sector,
 int dsk_sector_read(dsk_type *dsk, uint8_t *dst, uint8_t sector) {
 	track_header_type *track = get_sector_track_info(dsk, sector);
 	uint32_t sector_size = 128 << track->sector_size;
-	return dsk_read(dsk, dst, sector, sector_size);
-}
-
-int dsk_read(dsk_type *dsk, uint8_t *dst, uint8_t sector, uint32_t size) {
 	int32_t offset = get_sector_offset(dsk, sector);
 	if (offset >= 0) {
 		LOG(LOG_DEBUG, "Reading block of size %d, offset %04x", 
-		    size, offset);
+		    sector_size, offset);
 		uint8_t *src = dsk->image + offset;
-		memcpy(dst, src, size);
+		memcpy(dst, src, sector_size);
 		return DSK_OK;
 	} else {
 		dsk_error_set(dsk, "Unable to calculate offset for sector %u",
@@ -396,38 +387,6 @@ int dsk_read(dsk_type *dsk, uint8_t *dst, uint8_t sector, uint32_t size) {
 	}
 }
 
-/*
-static void write_entry_sector(dsk_type *dsk, FILE *fd, uint8_t sector) {
-	uint32_t offset = get_sector_offset(dsk, sector);
-	if (offset > 0) {
-		LOG(LOG_DEBUG, "Writing block of size %d, offset %04x", SECTOR_SIZE, offset);
-		uint8_t *src = dsk->image + offset; 
-		fwrite(src, SECTOR_SIZE, 1, fd);
-	} else {
-		LOG(LOG_WARN, "Skipping sector %d", sector);
-	}
-}
-	
-void write_entry_blocks(dsk_type *dsk, FILE *fd, dir_entry_type *dir_entry) {
-	int i;
-	char name[16];
-	LOG(LOG_DEBUG, "write_entry_blocks(entry=%s, extent_low=%u, records=%u)",
-	    dir_entry_get_name(dir_entry, name),
-	    dir_entry->extent_low,
-	    dir_entry->record_count);
-	    
-	//int block_count = (dir_entry->record_count + 7) >> 3;
-	int block_count = SHIFTH(dir_entry->record_count, 3);
-	LOG(LOG_TRACE, "Block count is %d", block_count);
-	for (i = 0; i < block_count; i++) {
-		if (dir_entry->blocks[i] > 0) {
-			uint8_t sector = dir_entry->blocks[i] << 1;
-			write_entry_sector(dsk, fd, sector);
-			write_entry_sector(dsk, fd, sector + 1);
-		}
-	}
-}
-*/
 int dsk_image_dump(dsk_type *dsk, const char *destination) {
         FILE *fd = fopen(destination, "w");
         if (fd != NULL) {

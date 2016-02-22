@@ -3,7 +3,12 @@ AM_LDFLAGS =
 
 lib_LTLIBRARIES = libdsk.la
 libdsk_la_SOURCES = dsk.c amsdos.c log.c
-include_HEADERS = dsk.h amsdos.h log.h
+if LINUX
+libdsk_la_SOURCES += linux_fddriver.c 
+else 
+libdsk_la_SOURCES += null_fddriver.c
+endif
+include_HEADERS = dsk.h amsdos.h log.h fddriver.h
 
 bin_PROGRAMS = dskread dskwrite dskmgmt
 dskread_SOURCES = common.c dskread.c

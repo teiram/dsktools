@@ -28,5 +28,18 @@ AC_TYPE_UINT8_T
 AC_FUNC_MALLOC
 AC_CHECK_FUNCS([atexit localtime_r memset strdup strerror strstr strtol])
 
-#AC_CONFIG_FILES([Makefile])
-AC_OUTPUT(Makefile src/Makefile)
+AM_CONDITIONAL([LINUX], false)
+case "$host" in
+  *-linux-*)
+  AM_CONDITIONAL([LINUX], true)
+  ;;
+  *)
+  AC_MSG_NOTICE(["No supported fd driver on: $host"])
+  ;;
+esac
+
+AC_CONFIG_FILES([
+ Makefile
+ src/Makefile
+])
+AC_OUTPUT
