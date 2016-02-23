@@ -71,6 +71,7 @@ fddriver_type *fddriver_new(const char *device) {
 		free(fddriver);
 		return NULL;
 	}
+	fddriver->retries = DEFAULT_RETRIES;
 	return fddriver;
 }
 
@@ -95,8 +96,12 @@ void fddriver_delete(fddriver_type *fddriver) {
 	free(fddriver);
 }
 
+void fddriver_retries_set(fddriver_type *fddriver, uint8_t retries) {
+	fddriver->retries = retries;
+}
+	
 int fddriver_reset(fddriver_type *fddriver) {
-
+	LOG(LOG_DEBUG, "fddriver_reset");
 	if (ioctl(fddriver->fd, FDRESET) < 0) {
 		LOG(LOG_ERROR, "Error resetting fdc: %s", strerror(errno));
 		error_add("Resetting fdc: %s", strerror(errno));
@@ -106,6 +111,8 @@ int fddriver_reset(fddriver_type *fddriver) {
 }
 
 int fddriver_init(fddriver_type *fddriver) {
+	LOG(LOG_DEBUG, "fddriver_init");
+
 	struct timespec delay = {0, 100000}; /* 100ms */
 	if (fddriver_reset(fddriver) != DSK_OK) {
 		return DSK_ERROR;
@@ -125,6 +132,10 @@ int fddriver_format_track(fddriver_type *fddriver, track_header_type *track) {
 		uint8_t sector;
 		uint8_t size;
 	} data[track->sector_count];
+
+	LOG(LOG_DEBUG, "fddriver_format_track(side=%u, track=%u)",
+	    track->side_number,
+	    track->track_number);
 
 	for (int i = 0; i < track->sector_count; i++) {
 		data[i].sector = track->sector_info[i].sector_id;
@@ -166,6 +177,10 @@ int fddriver_format_track(fddriver_type *fddriver, track_header_type *track) {
 
 int fddriver_sector_write(fddriver_type *fddriver, track_header_type *track,
 			  uint8_t sector, uint8_t *data) {
+
+	LOG(LOG_DEBUG, "fddriver_sector_write(track=%u, sector=%u)",
+	    track->track_number,
+	    sector);
 
 	struct floppy_raw_cmd raw_cmd;
 	unsigned char mask = 0xFF;
@@ -232,7 +247,10 @@ int fddriver_sector_read(fddriver_type *fddriver,
 			 track_header_type *track,
 			 uint8_t sector,
 			 uint8_t *buffer) {
-	
+	LOG(LOG_DEBUG, "fddriver_sector_read(track=%u, sector=%u)",
+	    track->track_number,
+	    sector);
+
 	struct floppy_raw_cmd raw_cmd;
 	sector_info_type *sector_info = &track->sector_info[sector];
 
@@ -292,6 +310,7 @@ int fddriver_recalibrate(fddriver_type *fddriver) {
 	int err;
 	struct floppy_raw_cmd raw_cmd;
 	unsigned char mask = 0xFF;
+	LOG(LOG_DEBUG, "fddriver_recalibrate");
 
 	/* some floppy disc controllers will seek a maximum of 77 tracks
 	   for a reclibrate command. This is not sufficient if the 
@@ -354,6 +373,7 @@ int fddriver_recalibrate(fddriver_type *fddriver) {
 	}
 	/* at track 0? */
 	if (raw_cmd.reply[0] & ST3_TZ) {
+		LOG(LOG_TRACE, "Head positioned at track 0");
 		return DSK_OK;
 	}
 
@@ -388,6 +408,7 @@ int fddriver_recalibrate(fddriver_type *fddriver) {
 
 	/* at track 0? */
 	if (raw_cmd.reply[0] & ST3_TZ) {
+		LOG(LOG_TRACE, "Head positioned at track 0");
 		return DSK_OK;
 	}
 
@@ -401,6 +422,7 @@ int fddriver_recalibrate(fddriver_type *fddriver) {
 }
 
 int fddriver_track_seek(fddriver_type *fddriver, uint8_t track) {
+	LOG(LOG_DEBUG, "fddriver_track_seek(track=%u)", track);
 	struct floppy_raw_cmd raw_cmd;
 	
 	init_raw_cmd(&raw_cmd);
@@ -422,6 +444,9 @@ int fddriver_track_seek(fddriver_type *fddriver, uint8_t track) {
 	
 int fddriver_sectorids_read(fddriver_type *fddriver, 
 			    track_header_type *track) {
+	LOG(LOG_DEBUG, "fddriver_sectorids_read(side=%u, track=%u)", 
+	    track->side_number,
+	    track->track_number);
 	uint8_t mask = 0xff;
 
 	struct floppy_raw_cmd cmds[32];
@@ -458,7 +483,7 @@ int fddriver_sectorids_read(fddriver_type *fddriver,
 		    (cur_cmd->reply[5] == 1) && /* R */
 		    (cur_cmd->reply[6] == 0) /* N */
 		    ) {
-			return 0;
+			return DSK_OK;
 		}
 	}
 
@@ -533,8 +558,8 @@ int fddriver_sectorids_read(fddriver_type *fddriver,
 		track->sector_info[i - 1].size = cur_cmd->reply[6];
 	}
 	free(buffer);
-	/* need to calculate number of sectors differently */	
-	return NSECTS;
+
+	return DSK_OK;
 }
 
 

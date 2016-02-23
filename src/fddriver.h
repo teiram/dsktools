@@ -33,6 +33,7 @@ _cmd.cmd[_cmd.cmd_count++] = value & 0xff
 #define READ_ID 0x04a
 #define READ_DATA 0x046
 #define NSECTS 9 /* Hardcoded so far */
+#define DEFAULT_RETRIES 5
 
 typedef struct {
 	int fd;
@@ -42,6 +43,7 @@ typedef struct {
 
 fddriver_type *fddriver_new(const char *device);
 void fddriver_delete(fddriver_type *fddriver);
+void fddriver_retries_set(fddriver_type *fddriver, uint8_t retries);
 int fddriver_reset(fddriver_type *fddriver);
 int fddriver_init(fddriver_type *fddriver);
 int fddriver_format_track(fddriver_type *fddriver, track_header_type *track);
@@ -53,5 +55,6 @@ int fddriver_sector_read(fddriver_type *fddriver,
 			 uint8_t *buffer);
 int fddriver_recalibrate(fddriver_type *fddriver);
 int fddriver_sectorids_read(fddriver_type *fddriver, track_header_type *track);
+int fddriver_track_seek(fddriver_type *fddriver, uint8_t track);
 
 #endif //FDDRIVER_H

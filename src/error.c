@@ -99,7 +99,6 @@ static void init_output_message() {
 const char *error_get() {
 	init_output_message();
 	int output_size = 0;
-	uint8_t first_run = 1;
 	for (int i = app_error->errnum - 1; i >= 0; i--) {
 		output_size += strlen(app_error->error_messages[i]) 
 			+ (i > 0) ? 1 : 0;

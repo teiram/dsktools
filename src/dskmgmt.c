@@ -31,9 +31,10 @@ typedef enum {
 	LIST,
 	INFO,
 	EXPORT,
-	REMOVE,
+	DELETE,
 	ADD,
-	WRITE
+	WRITE,
+	READ
 } option_type;
 
 static int help_exit(const char *message, int exitcode) {
@@ -41,13 +42,20 @@ static int help_exit(const char *message, int exitcode) {
                 fprintf(stderr, "%s\n\n", message);
         }
         fprintf(stderr, "Usage: dskmgmt [options] file.dsk\n");
-        fprintf(stderr, " Options: -l          | --list    shows directory\n");
-        fprintf(stderr, " Options: -i          | --info    shows info\n");
-        fprintf(stderr, " Options: -e filename | --export file from dsk\n");
-        fprintf(stderr, " Options: -r filename | --remove file from dsk\n");
-        fprintf(stderr, " Options: -u user | --user operation user\n");
-        fprintf(stderr, " Options: -o destination | --destination destination file\n");
-        fprintf(stderr, "          -h | --help    shows this help\n");
+	fprintf(stderr, " -Working modes. Mutually exclusive:\n");
+        fprintf(stderr, " -i, --info\t\t\tshows dsk info\n");
+        fprintf(stderr, " -l, --list\t\t\tshows dsk AMSDOS directory\n");
+        fprintf(stderr, " -e, --export=FILENAME\t\texports file from dsk\n");
+        fprintf(stderr, " -d, --delete=FILENAME\t\tdeletes file from dsk\n");
+        fprintf(stderr, " -a, --add=FILENAME\t\tadds file to dsk\n");
+        fprintf(stderr, " -w, --write=DEVICE\t\twrites dsk to device\n");
+        fprintf(stderr, " -r, --read=DEVICE\t\treads device to dsk\n");
+	fprintf(stderr, " -Modifying flags\n");
+        fprintf(stderr, " -u, --user=user\t\tsets user for amsdos file operations\n");
+        fprintf(stderr, " -o, --destination=FILENAME\tsets output filename\n");
+	fprintf(stderr, " -t, --tracks=TRACKS\t\tsets number of tracks\n");
+	fprintf(stderr, " -s, --sides=SIDES\t\tsets number of sides\n");
+        fprintf(stderr, " -h, --help\t\t\tshows this help\n");
         return exitcode;
 }
 
@@ -141,6 +149,19 @@ int write_dsk(const char *dsk_filename, const char *device) {
 	}
 }
 
+int read_dsk(const char *device, uint8_t tracks, uint8_t sides, 
+	     const char *destination) {
+	dsk_type *dsk = dsk_new_from_scratch(DSK, tracks, sides, 0x1200);
+	int status = dsk_disk_read(dsk, device);
+	if (status == DSK_OK) {
+		dsk_image_dump(dsk, destination);
+	} else {
+		fprintf(stderr, "Failure: %s\n", error_get());
+	}
+	dsk_delete(dsk);
+	return status;
+}
+
 int add_to_dsk(const char *dsk_filename, const char *source_file,
 	       const char *dst_filename, uint8_t user) {
 	amsdos_type *amsdos = amsdos_new(dsk_filename);
@@ -185,21 +206,26 @@ int main(int argc, char *argv[]) {
                 {"export", 1, 0, 'e'},
                 {"user", 1, 0, 'u'},
                 {"destination", 1, 0, 'o'},
-                {"remove", 1, 0, 'r'},
+                {"delete", 1, 0, 'd'},
                 {"add", 1, 0, 'a'},
                 {"write", 1, 0, 'w'},
+                {"read", 1, 0, 'r'},
+		{"tracks", 1, 0, 't'},
+		{"sides", 1, 0, 's'},
                 {0, 0, 0, 0}
         };
         int c;
         option_type option = INFO;
-        char *dsk_filename;
+        char *dsk_filename = NULL;
         char *target_filename = NULL;
         uint8_t target_user = 0;
         char *output_filename = NULL;
+	uint8_t tracks = 40;
+	uint8_t sides = 1;
 
         do {
                 int option_index = 0;
-                c = getopt_long(argc, argv, "lie:u:o:r:a:w:h",
+                c = getopt_long(argc, argv, "lie:u:o:d:r:a:w:tsh",
 				long_options, &option_index);
                 switch(c) {
                 case 'h':
@@ -226,13 +252,24 @@ int main(int argc, char *argv[]) {
 			option = ADD;
 			target_filename = optarg;
 			break;
-                case 'r':
-                        option = REMOVE;
+                case 'd':
+                        option = DELETE;
                         target_filename = optarg;
                         break;
 		case 'w':
 			option = WRITE;
 			target_filename = optarg;
+			break;
+		case 'r':
+			option = READ;
+			target_filename = optarg;
+			break;
+		case 't':
+                        tracks = atoi(optarg);
+                        break;			
+		case 's':
+			sides = atoi(optarg);
+			break;
                 }
         } while (c != -1);
 
@@ -251,7 +288,7 @@ int main(int argc, char *argv[]) {
         case EXPORT:
                 return export_dsk(dsk_filename, target_filename,
                                   output_filename, target_user);
-        case REMOVE:
+        case DELETE:
                 return remove_from_dsk(dsk_filename, target_filename,
                                        output_filename, target_user);
 	case ADD:
@@ -259,6 +296,9 @@ int main(int argc, char *argv[]) {
 				  output_filename, target_user);
 	case WRITE:
 		return write_dsk(dsk_filename, target_filename);
+	case READ:
+		return read_dsk(target_filename, tracks, 
+				sides, dsk_filename);
         }
         return result;
 }

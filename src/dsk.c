@@ -105,17 +105,9 @@ static uint32_t get_track_offset(dsk_type *dsk, uint8_t track) {
 	}
 }
 
-static uint8_t sectors_per_track(dsk_type *dsk) {
-	/* Assumes that all tracks have the same number of sectors*/
-	
-	track_header_type *track0 =
-		dsk_track_info_get(dsk, 0);
-	return track0->sector_count;
-}
-
 static uint8_t first_sector_id(dsk_type *dsk) {
 	track_header_type *track0 = 
-		dsk_track_info_get(dsk, 0);
+		dsk_track_info_get(dsk, 0, true);
 	uint8_t min = ~0;
 	for (int i = 0; i < track0->sector_count; i++) {
 		if (track0->sector_info[i].sector_id < min) {
@@ -131,7 +123,8 @@ uint32_t dsk_track_start_sector_get(dsk_type *dsk,
 	uint32_t startup_sector = 0;
 
 	for (int i = 0; i < track_index; i++) {
-		track_header_type *track_info = dsk_track_info_get(dsk, i);
+		track_header_type *track_info = 
+			dsk_track_info_get(dsk, i, true);
 		startup_sector += track_info->sector_count;
 	}
 	return startup_sector;
@@ -140,7 +133,8 @@ uint32_t dsk_track_start_sector_get(dsk_type *dsk,
 static track_header_type *get_sector_track_info(dsk_type *dsk, uint8_t sector) {
 	uint32_t current_sector = 0;
 	for (int i = 0; i < dsk->dsk_info->tracks; i++) {
-		track_header_type *track_info = dsk_track_info_get(dsk, i);
+		track_header_type *track_info = 
+			dsk_track_info_get(dsk, i, true);
 		current_sector += track_info->sector_count;
 		if (current_sector > sector) {
 			return track_info;
@@ -178,8 +172,8 @@ static int32_t get_sector_offset(dsk_type *dsk,
 	uint32_t offset = 0;
 	uint8_t sector_id = first_sector_id(dsk);
 	for (uint8_t track = 0; track < dsk->dsk_info->tracks; track++) {
-		track_header_type *track_info = dsk_track_info_get(dsk, 
-								   track);
+		track_header_type *track_info = 
+			dsk_track_info_get(dsk, track, true);
 		current_sector += track_info->sector_count;
 		if (current_sector < sector) {
 			offset += dsk_track_size_get(dsk, track);
@@ -201,7 +195,8 @@ uint32_t dsk_sector_offset_get(dsk_type *dsk,
 	    track_id, side, sector_id);
 	uint32_t offset = 0;
 	for (int i = 0; i < dsk->dsk_info->tracks; i++) {
-		track_header_type *track = dsk_track_info_get(dsk, i);
+		track_header_type *track = 
+			dsk_track_info_get(dsk, i, true);
 		LOG(LOG_TRACE, "Searching in track %u", track->track_number);
 		if (track->track_number == track_id &&
 		    track->side_number == side) {
@@ -220,12 +215,13 @@ static bool is_valid_track_in_offset(dsk_type *dsk, uint32_t offset) {
 	return !strncmp((char*) dsk->image + offset, DSK_TRACK_HEADER, 13);
 }
 
-track_header_type *dsk_track_info_get(dsk_type *dsk, uint8_t track) {
+track_header_type *dsk_track_info_get(dsk_type *dsk, uint8_t track, 
+				      bool validate) {
 	if (dsk && dsk->image) {
 		if (track < dsk->dsk_info->tracks) {
 			if (!dsk->track_info[track]) {
 				uint32_t offset = get_track_offset(dsk, track);
-				if (is_valid_track_in_offset(dsk, offset)) {
+				if (!validate || is_valid_track_in_offset(dsk, offset)) {
 					dsk->track_info[track] = (track_header_type*) (dsk->image + offset);
 				} else {
 					LOG(LOG_ERROR, 
@@ -257,6 +253,49 @@ void dsk_delete(dsk_type *dsk) {
 		}
 		free(dsk);
 	}
+}
+
+static void init_dsk_header(dsk_type *dsk, dsk_image_type type,
+			    uint8_t tracks, uint8_t sides, uint16_t tracklen) {
+	strncpy(dsk->dsk_info->magic, DSK_HEADER, 
+		sizeof(dsk->dsk_info->magic) - 1);
+	strncpy(dsk->dsk_info->creator, DSK_CREATOR,
+		sizeof(dsk->dsk_info->creator) - 1);
+	dsk->dsk_info->tracks = tracks;
+	dsk->dsk_info->sides = sides;
+	dsk->dsk_info->track_size[0] = tracklen & 0xff;
+	dsk->dsk_info->track_size[1] = (tracklen >> 8) & 0xff;
+}
+
+static void init_track_header(track_header_type *track, 
+			      uint8_t track_number, 
+			      uint8_t side_number, 
+			      uint8_t sector_size, 
+			      uint8_t sector_count, 
+			      uint8_t gap3_length) {
+	memset(track, 0, sizeof(track_header_type));
+	strncpy(track->magic, DSK_TRACK_HEADER, 
+		sizeof(track->magic) - 1);
+	track->track_number = track_number;
+	track->side_number = side_number;
+	track->sector_size = sector_size;
+	track->sector_count = sector_count;
+	track->gap3_length = gap3_length;
+}
+
+dsk_type *dsk_new_from_scratch(dsk_image_type type, 
+			       uint8_t tracks, 
+			       uint8_t sides,
+			       uint16_t tracklen) {
+	dsk_type *dsk = calloc(1, sizeof(dsk_type));
+	dsk->dsk_info = (dsk_header_type *)calloc(1, sizeof(dsk_header_type));
+	init_dsk_header(dsk, type, tracks, sides, tracklen);
+	uint32_t image_size = get_image_size(dsk);
+	dsk->image = (uint8_t*) malloc(image_size);
+	dsk->track_info = (track_header_type**) 
+		calloc(dsk->dsk_info->tracks,
+		       sizeof(track_header_type**));
+	return dsk;
 }
 
 dsk_type *dsk_new(const char *filename) {
@@ -294,7 +333,7 @@ static uint32_t get_capacity(dsk_type *dsk) {
 	uint32_t bytes = 0;
 	for (int i = 0; i < dsk->dsk_info->tracks; i++) {
 		track_header_type *track = 
-			dsk_track_info_get(dsk, i);
+			dsk_track_info_get(dsk, i, true);
 		bytes += track->sector_count * 
 			(BASE_SECTOR_SIZE << track->sector_size);
 	}
@@ -306,7 +345,7 @@ static uint32_t get_sector_count(dsk_type *dsk) {
 	uint32_t sectors = 0;
 	for (int i = 0; i < dsk->dsk_info->tracks; i++) {
 		track_header_type *track = 
-			dsk_track_info_get(dsk, i);
+			dsk_track_info_get(dsk, i, true);
 		sectors += track->sector_count;
 	}
 	LOG(LOG_TRACE, "Total sectors in dsk: %u", sectors);
@@ -404,7 +443,8 @@ int dsk_disk_write(dsk_type *dsk, const char *device) {
 
 	for (int i = 0; i < dsk->dsk_info->tracks; i++) {
 		for (int j = 0; j < dsk->dsk_info->sides; j++) {
-			track_header_type *track = dsk_track_info_get(dsk, i + j);
+			track_header_type *track = 
+				dsk_track_info_get(dsk, i + j, true);
 			if (fddriver_format_track(fddriver, track) != DSK_OK) {
 				LOG(LOG_ERROR, "Formatting track");
 				fddriver_delete(fddriver);
@@ -431,6 +471,53 @@ int dsk_disk_write(dsk_type *dsk, const char *device) {
 			}
 		}
 	}
+	fddriver_delete(fddriver);
+	return DSK_OK;
+}
+
+int dsk_disk_read(dsk_type *dsk, const char *device) {
+
+	fddriver_type *fddriver = fddriver_new(device);
+	if (fddriver == NULL) {
+		error_add("Unable to instantiate fd driver");
+		return DSK_ERROR;
+	}
+
+	for (int i = 0; i < dsk->dsk_info->tracks; i++) {
+		for (int j = 0; j < dsk->dsk_info->sides; j++) {
+			track_header_type *track = 
+				dsk_track_info_get(dsk, i + j, false);
+			/* TODO: Avoid fixed values here */
+			init_track_header(track, i, j, 2, 0, 82);
+			if (fddriver_track_seek(fddriver, i) != DSK_OK) {
+				fddriver_delete(fddriver);
+				return DSK_ERROR;
+			}
+			if (fddriver_sectorids_read(fddriver, 
+						    track) != DSK_OK) {
+				fddriver_delete(fddriver);
+				return DSK_ERROR;
+			}
+			for (int k = 0; k < track->sector_count; k++) {
+				sector_info_type *sector_info = 
+					&track->sector_info[k];
+				LOG(LOG_TRACE, 
+				    "Reading side/track/sector %02x/%02x/%02x", 
+				    track->side_number,
+				    track->track_number,
+				    sector_info->sector_id);
+				uint8_t *data = dsk->image + 
+					dsk_sector_offset_get(dsk, i, j, 
+							      sector_info->sector_id);				
+				if (fddriver_sector_read(fddriver, track, 
+							 k, data) != DSK_OK) {
+					fddriver_delete(fddriver);
+					return DSK_ERROR;
+				}
+			}
+		}
+	}
+	
 	fddriver_delete(fddriver);
 	return DSK_OK;
 }

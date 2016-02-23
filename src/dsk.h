@@ -27,6 +27,7 @@
 	(value + (1 << shift) - 1) >> shift
 
 #define DSK_HEADER "MV - CPC"
+#define DSK_CREATOR "dsktools"
 #define EDSK_HEADER "EXTENDED CPC DSK File"
 #define DSK_TRACK_HEADER "Track-Info\r\n"
 #define BASE_SECTOR_SIZE        128
@@ -87,16 +88,23 @@ typedef struct {
 } dsk_type;
 
 dsk_type *dsk_new(const char *filename);
+dsk_type *dsk_new_from_scratch(dsk_image_type type, 
+			       uint8_t tracks, 
+			       uint8_t sides,
+			       uint16_t tracklen);
 void dsk_delete(dsk_type *dsk);
 dsk_info_type *dsk_info_get(dsk_type *dsk, dsk_info_type *info);
 uint32_t dsk_sector_offset_get(dsk_type *dsk, 
 			       uint8_t track_id, uint8_t side, 
 			       uint8_t sector_id);
 track_header_type *dsk_track_info_get(dsk_type *dsk,
-				      uint8_t track);
+				      uint8_t track,
+				      bool validate);
 int dsk_image_dump(dsk_type *dsk, const char *destination);
 int dsk_sector_write(dsk_type *dsk, const uint8_t *src, uint8_t sector);
 uint32_t dsk_track_size_get(dsk_type *dsk, uint8_t track);
 int dsk_sector_read(dsk_type *dsk, uint8_t *dst, uint8_t sector);
 int dsk_disk_write(dsk_type *dsk, const char *device);
+int dsk_disk_read(dsk_type *dsk, const char *device);
+
 #endif //DSK_H
