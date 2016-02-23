@@ -25,7 +25,7 @@
 #define MAX_ERROR_STACK 8
 #define ERROR_OUTPUT_SIZE 256
 #define MAX_ERROR_SIZE 256
-#define ERROR_SEPARATOR ":"
+#define ERROR_SEPARATOR "\n"
 
 #define DSK_ERROR -1
 #define DSK_OK 0

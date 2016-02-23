@@ -109,11 +109,11 @@ const char *error_get() {
 				MAX(ERROR_OUTPUT_SIZE, needs);
 			app_error->error_output = (char *) realloc(app_error->error_output, app_error->current_output_size);
 		}
+		strcat(app_error->error_output, 
+		       app_error->error_messages[i]);
 		if (i > 0) {
 			strcat(app_error->error_output, ERROR_SEPARATOR);
 		}
-		strcat(app_error->error_output, 
-		       app_error->error_messages[i]);
 	}
 	return app_error->error_output;
 }
