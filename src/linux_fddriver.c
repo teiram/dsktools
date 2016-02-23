@@ -33,36 +33,42 @@
 #include "log.h"
 #include "error.h"
 
-fddriver_type *fddriver_new(const char *device) {
-	fddriver_type *fddriver = calloc(1, sizeof(fddriver_type));
+static int8_t get_drive_number(const char *device) {
+	int8_t drive_number = -1;
 	char *ptr = strstr(device, "fd");
 	if (ptr) {
 		char *endp;
-		fddriver->drive_number = strtol(ptr + 1, &endp, 10);
-		if ((endp - ptr) > 1) {
-			LOG(LOG_ERROR, 
-			    "Unable to extract drive number from device %s", 
-			    device);
-			error_add("Extracting drive number from device %s",
-				  device);
-			return NULL;
+		drive_number = strtol(ptr + 2, &endp, 10);
+		if ((endp - ptr) != 3) {
+			LOG(LOG_WARN, 
+			    "Unexpected result in conversion of device number");
 		} else {
-			LOG(LOG_TRACE, "Drive Number is %u", 
-			    fddriver->drive_number);
+			return drive_number;
 		}
 	} else {
-		LOG(LOG_ERROR, 
-		    "Unable to extract drive number from device %s", device);
+		LOG(LOG_WARN, "No fd fragment found in device name %s", 
+		    device);
+	}
+	return -1;
+}
+
+fddriver_type *fddriver_new(const char *device) {
+	int8_t drive_number = get_drive_number(device);
+	LOG(LOG_TRACE, "Drive number is %d", drive_number);
+	if (drive_number < 0) {
 		error_add("Extracting drive number from device %s",
 			  device);
 		return NULL;
 	}
+	fddriver_type *fddriver = calloc(1, sizeof(fddriver_type));
+	fddriver->drive_number = drive_number;
 	fddriver->fd = open(device, O_ACCMODE | O_NDELAY);
 	if (fddriver->fd < 0) {
 		LOG(LOG_ERROR, "Error opening floppy device: %s", 
 		    strerror(errno));
 		error_add("Opening floppy device %s. %s", 
 			  device, strerror(errno));
+		free(fddriver);
 		return NULL;
 	}
 	return fddriver;
