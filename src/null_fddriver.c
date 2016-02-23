@@ -17,23 +17,13 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <linux/fd.h>
-#include <linux/fdreg.h>
-#include <sys/ioctl.h>
-#include <time.h>
 #include "fddriver.h"
-#include "dsk.h"
 #include "log.h"
+#include "error.h"
 
 fddriver_type *fddriver_new(const char *device) {
 	LOG(LOG_ERROR, "Unable to instantiate a floppy driver. Unsupported platform");
+	error_add("Unsupported platform. Floppy driver is not provided");
 	return NULL;
 }
 

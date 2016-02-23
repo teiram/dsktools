@@ -34,25 +34,7 @@
 #include "dsk.h"
 #include "log.h"
 #include "fddriver.h"
-
-static void dsk_error_set(dsk_type *dsk, const char *fmt, ...) {
-	if (dsk) {
-		va_list ap;
-		va_start(ap, fmt);
-		vsnprintf(dsk->error, DSK_ERROR_SIZE, fmt, ap);
-	} else {
-		LOG(LOG_ERROR, "Attempt to set error on uninitialized DSK");
-	}
-}
-
-const char *dsk_error_get(dsk_type *dsk) {
-	if (dsk) {
-		return dsk->error;
-	} else {
-		LOG(LOG_WARN, "Trying to get error from an unitialized DSK");
-		return NULL;
-	}
-}
+#include "error.h"
 
 static bool is_dsk_image(dsk_type *dsk) {
 	if (dsk && dsk->dsk_info) {
@@ -103,7 +85,7 @@ static uint32_t get_image_size(dsk_type *dsk) {
 		}
 		return size;
 	} else {
-		dsk_error_set(dsk, "Getting image size from unsupported image");
+		error_add("Getting image size from unsupported image");
 		return 0;
 	}
 }
@@ -118,7 +100,7 @@ static uint32_t get_track_offset(dsk_type *dsk, uint8_t track) {
 		}
 		return offset;
 	} else {
-		dsk_error_set(dsk, "Getting track offset from unsupported image");
+		error_add("Getting track offset from unsupported image");
 		return 0;
 	}
 }
@@ -249,9 +231,8 @@ track_header_type *dsk_track_info_get(dsk_type *dsk, uint8_t track) {
 					LOG(LOG_ERROR, 
 					    "Invalid track offset %04x", 
 					    offset);
-					dsk_error_set(dsk, 
-						      "Invalid track offset %04x", 
-						      offset);
+					error_add("Invalid track offset %04x", 
+						  offset);
 					return NULL;
 				}
 			}
@@ -274,9 +255,6 @@ void dsk_delete(dsk_type *dsk) {
 		if (dsk->track_info) {
 			free(dsk->track_info);
 		}
-		if (dsk->error) {
-			free(dsk->error);
-		}
 		free(dsk);
 	}
 }
@@ -298,7 +276,6 @@ dsk_type *dsk_new(const char *filename) {
 				dsk->track_info = (track_header_type**) 
 					calloc(dsk->dsk_info->tracks,
 					       sizeof(track_header_type**));
-				dsk->error = (char*) calloc(1, DSK_ERROR_SIZE);
 				return dsk;
 			}
 		} else {
@@ -365,8 +342,8 @@ int dsk_sector_write(dsk_type *dsk, const uint8_t *src, uint8_t sector) {
 		memcpy(dst, src, sector_size);
 		return DSK_OK;
 	} else {
-		dsk_error_set(dsk, "Unable to calculate offset for sector %u",
-			      sector);
+		error_add("Unable to calculate offset for sector %u",
+			  sector);
 		return DSK_ERROR;
 	}
 }
@@ -382,8 +359,8 @@ int dsk_sector_read(dsk_type *dsk, uint8_t *dst, uint8_t sector) {
 		memcpy(dst, src, sector_size);
 		return DSK_OK;
 	} else {
-		dsk_error_set(dsk, "Unable to calculate offset for sector %u",
-			      sector);
+		error_add("Unable to calculate offset for sector %u",
+			  sector);
 		return DSK_ERROR;
 	}
 }
@@ -393,26 +370,26 @@ int dsk_image_dump(dsk_type *dsk, const char *destination) {
         if (fd != NULL) {
                 if (fwrite(dsk->dsk_info,
                            sizeof(dsk_header_type), 1, fd) < 1) {
-                        dsk_error_set(dsk, "Writing image to %s. %s",
-                                      destination,
-                                      strerror(errno));
+                        error_add("Writing image to %s. %s",
+				  destination,
+				  strerror(errno));
                         fclose(fd);
                         return DSK_ERROR;
                 }
                 if (fwrite(dsk->image,
                            get_image_size(dsk), 1, fd) < 1) {
-                        dsk_error_set(dsk, "Writing image to %s. %s",
-                                      destination,
-                                      strerror(errno));
+                        error_add("Writing image to %s. %s",
+				  destination,
+				  strerror(errno));
                         fclose(fd);
                         return DSK_ERROR;
                 }
                 fclose(fd);
                 return DSK_OK;
         } else {
-                dsk_error_set(dsk, "Opening destination file %s. %s",
-                              destination,
-                              strerror(errno));
+                error_add("Opening destination file %s. %s",
+			  destination,
+			  strerror(errno));
                 return DSK_ERROR;
         }
 }
@@ -421,7 +398,7 @@ int dsk_disk_write(dsk_type *dsk, const char *device) {
 
 	fddriver_type *fddriver = fddriver_new(device);
 	if (fddriver == NULL) {
-		dsk_error_set(dsk, "Unable to instantiate fd driver");
+		error_add("Unable to instantiate fd driver");
 		return DSK_ERROR;
 	}
 
@@ -447,7 +424,7 @@ int dsk_disk_write(dsk_type *dsk, const char *device) {
 				if (fddriver_sector_write(fddriver, track, k,
 							  data) != DSK_OK) {
 					LOG(LOG_ERROR, "Writing sector to disk");
-					dsk_error_set(dsk, "Writing sector to disk");
+					error_add("Writing sector to disk");
 					fddriver_delete(fddriver);
 					return DSK_ERROR;
 				}

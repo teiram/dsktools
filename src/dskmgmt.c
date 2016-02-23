@@ -25,6 +25,7 @@
 #include <string.h>
 #include "amsdos.h"
 #include "log.h"
+#include "error.h"
 
 typedef enum {
 	LIST,
@@ -115,8 +116,7 @@ int export_dsk(const char *dsk_filename, const char *amsdos_filename,
 		int status = amsdos_file_get(amsdos, amsdos_filename, user,
 					     dst_filename ? dst_filename : amsdos_filename);
 		if (status != DSK_OK) {
-			fprintf(stderr, "Failure: %s\n", 
-				amsdos_error_get(amsdos));
+			fprintf(stderr, "Failure: %s\n", error_get());
 		} 
 		amsdos_delete(amsdos);
 		return status;
@@ -131,8 +131,7 @@ int write_dsk(const char *dsk_filename, const char *device) {
 	if (dsk) {
 		int status = dsk_disk_write(dsk, device);
 		if (status != DSK_OK) {
-			fprintf(stderr, "Failure: %s\n", 
-				dsk_error_get(dsk));
+			fprintf(stderr, "Failure: %s\n", error_get());
 		}
 		dsk_delete(dsk);
 		return status;
@@ -149,8 +148,7 @@ int add_to_dsk(const char *dsk_filename, const char *source_file,
 		int status = amsdos_file_add(amsdos, source_file,
 					     source_file, user);
 		if (status != DSK_OK) {
-			fprintf(stderr, "Failure: %s\n", 
-				amsdos_error_get(amsdos));
+			fprintf(stderr, "Failure: %s\n", error_get());
 		} else {
 			dsk_image_dump(amsdos->dsk, dst_filename);
 		}
@@ -168,8 +166,7 @@ int remove_from_dsk(const char *dsk_filename, const char *amsdos_filename,
         if (amsdos) {
                 int status = amsdos_file_remove(amsdos, amsdos_filename, user);
                 if (status != DSK_OK) {
-                        fprintf(stderr, "Failure: %s\n", 
-				amsdos_error_get(amsdos));
+                        fprintf(stderr, "Failure: %s\n", error_get());
                 } else {
 			dsk_image_dump(amsdos->dsk, dst_filename);
 		}

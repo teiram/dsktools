@@ -2,13 +2,13 @@ AM_CFLAGS = -Wall -std=c99 -D_POSIX_C_SOURCE=200809L -O2
 AM_LDFLAGS = 
 
 lib_LTLIBRARIES = libdsk.la
-libdsk_la_SOURCES = dsk.c amsdos.c log.c
+libdsk_la_SOURCES = dsk.c amsdos.c log.c error.c
 if LINUX
 libdsk_la_SOURCES += linux_fddriver.c 
 else 
 libdsk_la_SOURCES += null_fddriver.c
 endif
-include_HEADERS = dsk.h amsdos.h log.h fddriver.h
+include_HEADERS = dsk.h amsdos.h log.h fddriver.h error.h
 
 bin_PROGRAMS = dskread dskwrite dskmgmt
 dskread_SOURCES = common.c dskread.c

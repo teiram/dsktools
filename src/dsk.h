@@ -30,9 +30,6 @@
 #define EDSK_HEADER "EXTENDED CPC DSK File"
 #define DSK_TRACK_HEADER "Track-Info\r\n"
 #define BASE_SECTOR_SIZE        128
-#define DSK_ERROR_SIZE 256
-#define DSK_OK 0
-#define DSK_ERROR -1
 
 typedef enum {
 	DSK,
@@ -87,12 +84,10 @@ typedef struct {
 	uint8_t *image;
 	dsk_header_type *dsk_info;
 	track_header_type **track_info;
-	char *error;
 } dsk_type;
 
 dsk_type *dsk_new(const char *filename);
 void dsk_delete(dsk_type *dsk);
-const char *dsk_error_get(dsk_type *dsk);
 dsk_info_type *dsk_info_get(dsk_type *dsk, dsk_info_type *info);
 uint32_t dsk_sector_offset_get(dsk_type *dsk, 
 			       uint8_t track_id, uint8_t side, 

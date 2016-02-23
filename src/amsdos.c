@@ -33,26 +33,7 @@
 
 #include "amsdos.h"
 #include "log.h"
-
-static void amsdos_error_set(amsdos_type *amsdos, const char *fmt, ...) {
-	if (amsdos) {
-		va_list ap;
-		va_start(ap, fmt);
-		vsnprintf(amsdos->error, AMSDOS_ERROR_SIZE, fmt, ap);
-	} else {
-		LOG(LOG_ERROR, "Attempt to set error on uninitialized object");
-	}
-}
-
-char *amsdos_error_get(amsdos_type *amsdos) {
-	if (amsdos) {
-		return amsdos->error;
-	} else {
-		LOG(LOG_WARN, 
-		    "Trying to get error from an unitialized object");
-		return NULL;
-	}
-}
+#include "error.h"
 
 static uint8_t base_track_index(amsdos_type *amsdos) {
 	dsk_info_type dsk_info;
@@ -372,8 +353,8 @@ static off_t add_file_checks(amsdos_type *amsdos, const char *source_file,
 	LOG(LOG_DEBUG, "add_file_checks(source=%s, target=%s, user=%u)",
 	    source_file, target_name, user);
 	if (amsdos_file_exists(amsdos, target_name, user)) {
-		amsdos_error_set(amsdos, "File %s(%d) already exists in dsk",
-			      target_name, user);
+		error_add("File %s(%d) already exists in dsk",
+			  target_name, user);
 		return DSK_ERROR;
 	}
 
@@ -383,17 +364,15 @@ static off_t add_file_checks(amsdos_type *amsdos, const char *source_file,
 	if (size < 0) {
 		LOG(LOG_ERROR, "Unable to determine file size %s", 
 		    source_file);
-		amsdos_error_set(amsdos, 
-				 "Unable to determine file size for %s",
-				 source_file);
+		error_add("Unable to determine file size for %s",
+			  source_file);
 		return DSK_ERROR;
 	}
 
 	uint16_t free_dir_entries = get_free_dir_entry_count(amsdos);
 	if (size > (free_dir_entries * AMSDOS_BLOCKS_DIRENT * 1024)) {
-		amsdos_error_set(amsdos, 
-			      "Not enough free directory entries %d", 
-			      free_dir_entries);
+		error_add("Not enough free directory entries %d", 
+			  free_dir_entries);
 		return DSK_ERROR;
 	}
 	return size;
@@ -408,7 +387,7 @@ static int add_file_internal(amsdos_type *amsdos, amsdos_header_type *header,
 	for (off_t pos = 0; pos < size;) {
 		int8_t dir_entry_index = get_next_free_dir_entry(amsdos);
 		if (dir_entry_index < 0) {
-			amsdos_error_set(amsdos, "Exhausted directory entries");
+			error_add("Exhausted directory entries");
 			return DSK_ERROR;
 		}
 		amsdos_dir_type dir_entry;
@@ -442,8 +421,7 @@ static int add_file_internal(amsdos_type *amsdos, amsdos_header_type *header,
 				read_sector(amsdos, stream, NULL, sector + 1);
 				pos += AMSDOS_SECTOR_SIZE << 1;
 			} else {
-				amsdos_error_set(amsdos, 
-						 "Free blocks exhausted");
+				error_add("Free blocks exhausted");
 				return DSK_ERROR;
 			}
 		}
@@ -586,14 +564,13 @@ int amsdos_file_get(amsdos_type *amsdos,
 			fclose(fd);
 			return DSK_OK;
 		} else {
-			amsdos_error_set(amsdos, 
-					 "Unable to write to file %s: %s", 
-					 destination,
-					 strerror(errno));
+			error_add("Unable to write to file %s: %s", 
+				  destination,
+				  strerror(errno));
 			return DSK_ERROR;
 		}
 	} else {
-		amsdos_error_set(amsdos, "Unable to find file %s\n", name);
+		error_add("Unable to find file %s\n", name);
 		return DSK_ERROR;
 	}
 }
@@ -618,7 +595,7 @@ int amsdos_file_remove(amsdos_type *amsdos,
                          dir_entry_p->user == user);
 		return DSK_OK;
         } else {
-                amsdos_error_set(amsdos, "Unable to find file %s\n", name);
+                error_add("Unable to find file %s\n", name);
                 return DSK_ERROR;
         }
 }
@@ -640,7 +617,7 @@ int amsdos_file_add(amsdos_type *amsdos, const char *source_file,
 	off_t size;
 	if ((size = add_file_checks(amsdos, source_file, 
 				    target_name, user)) < DSK_OK) {
-		LOG(LOG_ERROR, "In file checks %s", amsdos_error_get(amsdos));
+		LOG(LOG_ERROR, "In file checks %s", error_get());
 		return DSK_ERROR;
 	}
 
@@ -662,7 +639,7 @@ int amsdos_binary_file_add(amsdos_type *amsdos, const char *source_file,
 	off_t size;
 	if ((size = add_file_checks(amsdos, source_file, 
 				    target_name, user)) < DSK_OK) {
-		LOG(LOG_ERROR, "In file checks %s", amsdos_error_get(amsdos));
+		LOG(LOG_ERROR, "In file checks %s",error_get(amsdos));
 		return DSK_ERROR;
 	}
 
@@ -674,9 +651,8 @@ int amsdos_binary_file_add(amsdos_type *amsdos, const char *source_file,
 	amsdos_header_type header;
 	size_t nread = fread(&header, sizeof(amsdos_header_type), 1, stream);
 	if (nread < 1) {
-		amsdos_error_set(amsdos, 
-				 "Unable to read header from file %s. %s",
-				 source_file, strerror(errno));
+		error_add("Unable to read header from file %s. %s",
+			  source_file, strerror(errno));
 		fclose(stream);
 		return DSK_ERROR;
 	}
@@ -703,7 +679,7 @@ int amsdos_ascii_file_add(amsdos_type *amsdos, const char *source_file,
 	off_t size;
 	if ((size = add_file_checks(amsdos, source_file, 
 				    target_name, user)) < DSK_OK) {
-		LOG(LOG_ERROR, "In file checks %s", amsdos_error_get(amsdos));
+		LOG(LOG_ERROR, "In file checks %s", error_get());
 		return DSK_ERROR;
 	}
 
@@ -714,9 +690,8 @@ int amsdos_ascii_file_add(amsdos_type *amsdos, const char *source_file,
 	amsdos_header_type header;
 	size_t nread = fread(&header, sizeof(amsdos_header_type), 1, stream);
 	if (nread < 1) {
-		amsdos_error_set(amsdos, 
-				 "Unable to read header from file %s. %s",
-				 source_file, strerror(errno));
+		error_add("Unable to read header from file %s. %s",
+			  source_file, strerror(errno));
 		fclose(stream);
 		return DSK_ERROR;
 	}

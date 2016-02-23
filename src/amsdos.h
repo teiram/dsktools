@@ -86,7 +86,6 @@ typedef struct {
 typedef struct {
 	dsk_type *dsk;
 	uint8_t last_free_block;
-	char *error;
 } amsdos_type;
 
 typedef struct {
@@ -99,8 +98,6 @@ amsdos_type *amsdos_new(const char *filename);
 void amsdos_delete(amsdos_type *amsdos);
 
 amsdos_info_type *amsdos_info_get(amsdos_type *amsdos, amsdos_info_type *info);
-
-char *amsdos_error_get(amsdos_type *amsdos);
 
 amsdos_dir_type *amsdos_dir_get(amsdos_type *amsdos,
 				amsdos_dir_type *dir_entry, 
