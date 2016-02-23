@@ -100,6 +100,12 @@ uint32_t dsk_sector_offset_get(dsk_type *dsk,
 track_header_type *dsk_track_info_get(dsk_type *dsk,
 				      uint8_t track,
 				      bool validate);
+void dsk_track_info_init(track_header_type *track, 
+			 uint8_t track_number, 
+			 uint8_t side_number, 
+			 uint8_t sector_size, 
+			 uint8_t sector_count, 
+			 uint8_t gap3_length);
 int dsk_image_dump(dsk_type *dsk, const char *destination);
 int dsk_sector_write(dsk_type *dsk, const uint8_t *src, uint8_t sector);
 uint32_t dsk_track_size_get(dsk_type *dsk, uint8_t track);

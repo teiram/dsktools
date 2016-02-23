@@ -183,7 +183,6 @@ int fddriver_sector_write(fddriver_type *fddriver, track_header_type *track,
 	    sector);
 
 	struct floppy_raw_cmd raw_cmd;
-	unsigned char mask = 0xFF;
 
 	sector_info_type *sector_info = &track->sector_info[sector];
 
@@ -197,10 +196,10 @@ int fddriver_sector_write(fddriver_type *fddriver, track_header_type *track,
 
 	if (sector_info->unused1 & 0x040) {
 		/* "write deleted data" (totally untested!) */
-		raw_cmd.cmd[raw_cmd.cmd_count++] = FD_WRITE_DEL & mask;
+		raw_cmd.cmd[raw_cmd.cmd_count++] = FD_WRITE_DEL;
 	} else {
 		/* "write data" */
-		raw_cmd.cmd[raw_cmd.cmd_count++] = FD_WRITE & mask;
+		raw_cmd.cmd[raw_cmd.cmd_count++] = FD_WRITE;
 	}
 
 	// these parameters are same for "write data" and "write deleted data".
@@ -309,7 +308,6 @@ int fddriver_sector_read(fddriver_type *fddriver,
 int fddriver_recalibrate(fddriver_type *fddriver) {
 	int err;
 	struct floppy_raw_cmd raw_cmd;
-	unsigned char mask = 0xFF;
 	LOG(LOG_DEBUG, "fddriver_recalibrate");
 
 	/* some floppy disc controllers will seek a maximum of 77 tracks
@@ -340,7 +338,7 @@ int fddriver_recalibrate(fddriver_type *fddriver) {
 	init_raw_cmd(&raw_cmd);
 	raw_cmd.flags = FD_RAW_INTR;
 	raw_cmd.length = 0;
-	raw_cmd.cmd[raw_cmd.cmd_count++] = FD_RECALIBRATE & mask;
+	raw_cmd.cmd[raw_cmd.cmd_count++] = FD_RECALIBRATE;
 	raw_cmd.cmd[raw_cmd.cmd_count++] = fddriver->drive_number;
 	err = ioctl(fddriver->fd, FDRAWCMD, &raw_cmd);
 	if (err < 0) {
@@ -362,7 +360,7 @@ int fddriver_recalibrate(fddriver_type *fddriver) {
 	init_raw_cmd(&raw_cmd);
 	raw_cmd.flags = 0;
 	raw_cmd.length = 0;
-	raw_cmd.cmd[raw_cmd.cmd_count++] = FD_GETSTATUS & mask;
+	raw_cmd.cmd[raw_cmd.cmd_count++] = FD_GETSTATUS;
 	raw_cmd.cmd[raw_cmd.cmd_count++] = fddriver->drive_number;
 	err = ioctl(fddriver->fd, FDRAWCMD, &raw_cmd);
 	if (err < 0) {
@@ -381,7 +379,7 @@ int fddriver_recalibrate(fddriver_type *fddriver) {
 	init_raw_cmd(&raw_cmd);
 	raw_cmd.flags = FD_RAW_INTR;
 	raw_cmd.length = 0;
-	raw_cmd.cmd[raw_cmd.cmd_count++] = FD_RECALIBRATE & mask;
+	raw_cmd.cmd[raw_cmd.cmd_count++] = FD_RECALIBRATE;
 	raw_cmd.cmd[raw_cmd.cmd_count++] = fddriver->drive_number;
 	err = ioctl(fddriver->fd, FDRAWCMD, &raw_cmd);
 	if (err < 0) {
@@ -395,7 +393,7 @@ int fddriver_recalibrate(fddriver_type *fddriver) {
 	init_raw_cmd(&raw_cmd);
 	raw_cmd.flags = 0;
 	raw_cmd.length = 0;
-	raw_cmd.cmd[raw_cmd.cmd_count++] = FD_GETSTATUS & mask;
+	raw_cmd.cmd[raw_cmd.cmd_count++] = FD_GETSTATUS;
 	raw_cmd.cmd[raw_cmd.cmd_count++] = fddriver->drive_number;
 	err = ioctl(fddriver->fd, FDRAWCMD, &raw_cmd);
 	if (err < 0) {
@@ -447,7 +445,6 @@ int fddriver_sectorids_read(fddriver_type *fddriver,
 	LOG(LOG_DEBUG, "fddriver_sectorids_read(side=%u, track=%u)", 
 	    track->side_number,
 	    track->track_number);
-	uint8_t mask = 0xff;
 
 	struct floppy_raw_cmd cmds[32];
 	struct floppy_raw_cmd *cur_cmd = cmds;
@@ -462,7 +459,7 @@ int fddriver_sectorids_read(fddriver_type *fddriver,
 	cur_cmd->track = track->track_number;
 	cur_cmd->rate = FM_RATE;
 	cur_cmd->length = 0;
-	cur_cmd->cmd[cur_cmd->cmd_count++] = READ_ID & mask;
+	cur_cmd->cmd[cur_cmd->cmd_count++] = READ_ID;
 	cur_cmd->cmd[cur_cmd->cmd_count++] = track->side_number << 2 |
 		fddriver->drive_number;
 			
@@ -510,7 +507,7 @@ int fddriver_sectorids_read(fddriver_type *fddriver,
 	cur_cmd->track = track->track_number;
 	cur_cmd->rate = FM_RATE;
 	cur_cmd->length = 6500;
-	cur_cmd->cmd[cur_cmd->cmd_count++] = FD_READTRACK & mask;
+	cur_cmd->cmd[cur_cmd->cmd_count++] = FD_READTRACK;
 	cur_cmd->cmd[cur_cmd->cmd_count++] = track->side_number << 2 |
 		fddriver->drive_number;
 	cur_cmd->cmd[cur_cmd->cmd_count++] = 0;
@@ -534,7 +531,7 @@ int fddriver_sectorids_read(fddriver_type *fddriver,
 		cur_cmd->track = track->track_number;
 		cur_cmd->rate = FM_RATE;
 		cur_cmd->length = 0; 
-		cur_cmd->cmd[cur_cmd->cmd_count++] = READ_ID & mask;
+		cur_cmd->cmd[cur_cmd->cmd_count++] = READ_ID;
 		cur_cmd->cmd[cur_cmd->cmd_count++] = track->side_number << 2 |
 			fddriver->drive_number;
 	}		

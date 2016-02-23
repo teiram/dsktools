@@ -34,14 +34,15 @@ typedef enum {
 	DELETE,
 	ADD,
 	WRITE,
-	READ
+	READ,
+	NEW
 } option_type;
 
 static int help_exit(const char *message, int exitcode) {
         if (message) {
                 fprintf(stderr, "%s\n\n", message);
         }
-        fprintf(stderr, "Usage: dskmgmt [options] file.dsk\n");
+        fprintf(stderr, "Usage: dskmgmt [options] <dskfile>\n");
 	fprintf(stderr, " -Working modes. Mutually exclusive:\n");
         fprintf(stderr, " -i, --info\t\t\tshows dsk info\n");
         fprintf(stderr, " -l, --list\t\t\tshows dsk AMSDOS directory\n");
@@ -50,11 +51,16 @@ static int help_exit(const char *message, int exitcode) {
         fprintf(stderr, " -a, --add=FILENAME\t\tadds file to dsk\n");
         fprintf(stderr, " -w, --write=DEVICE\t\twrites dsk to device\n");
         fprintf(stderr, " -r, --read=DEVICE\t\treads device to dsk\n");
-	fprintf(stderr, " -Modifying flags\n");
-        fprintf(stderr, " -u, --user=user\t\tsets user for amsdos file operations\n");
-        fprintf(stderr, " -o, --destination=FILENAME\tsets output filename\n");
-	fprintf(stderr, " -t, --tracks=TRACKS\t\tsets number of tracks\n");
-	fprintf(stderr, " -s, --sides=SIDES\t\tsets number of sides\n");
+	fprintf(stderr, " -n, --new\t\t\tcreates a new empty dsk\n");
+	fprintf(stderr, " -Modifying flags (with default values)\n");
+        fprintf(stderr, " -u, --user=user\t\tuser for amsdos file operations (0)\n");
+        fprintf(stderr, " -o, --destination=FILENAME\toutput filename\n");
+	fprintf(stderr, " -t, --tracks=TRACKS\t\tnumber of tracks (40)\n");
+	fprintf(stderr, " -s, --sides=SIDES\t\tnumber of sides (1)\n");
+	fprintf(stderr, " -T, --tracklen=TRACKLEN\tsize of a track (0x1200)\n");
+	fprintf(stderr, " -S, --sectorsize=SSIZE\t\tsector size (2)\n");
+	fprintf(stderr, " -P, --sectrack=SECTRACK\tsectors per track (9)\n");
+	fprintf(stderr, " -A, --amsdostype=TYPE\t\ttype of disk to create DATA,IBM,SYSTEM (DATA)\n");
         fprintf(stderr, " -h, --help\t\t\tshows this help\n");
         return exitcode;
 }
@@ -68,7 +74,7 @@ int get_info(const char *filename) {
 		       "DSK" : "EDSK");
 		printf("Disk id\t\t: %s\n", info.dsk_info.magic);
 		printf("Creator\t\t: %s\n", info.dsk_info.creator);
-		printf("Disk type\t: %s\n",  AMSDOS_DISK_TYPE(info.type));
+		printf("Disk type\t: %s\n",  AMSDOS_DISK_STR(info.type));
 		printf("Tracks\t\t: %4d\n", info.dsk_info.tracks);
 		printf("Sides\t\t: %4d\n", info.dsk_info.sides);
 		printf("Sectors\t\t: %4d\n", info.dsk_info.sectors);
@@ -162,6 +168,22 @@ int read_dsk(const char *device, uint8_t tracks, uint8_t sides,
 	return status;
 }
 
+int new_dsk(const char *destination, uint8_t tracks, uint8_t sides, 
+	    uint8_t sectors_per_track, uint8_t sector_size,
+	    uint16_t tracklen, amsdos_disk_type type) {
+	amsdos_type *amsdos = amsdos_new_from_scratch(tracks, sides, 
+						      sectors_per_track,
+						      sector_size,
+						      tracklen,
+						      type);
+	int status = dsk_image_dump(amsdos->dsk, destination);
+	amsdos_delete(amsdos);
+	if (status != DSK_OK) {
+		fprintf(stderr, "Failure: %s", error_get());
+	}
+	return status;
+}
+
 int add_to_dsk(const char *dsk_filename, const char *source_file,
 	       const char *dst_filename, uint8_t user) {
 	amsdos_type *amsdos = amsdos_new(dsk_filename);
@@ -210,8 +232,13 @@ int main(int argc, char *argv[]) {
                 {"add", 1, 0, 'a'},
                 {"write", 1, 0, 'w'},
                 {"read", 1, 0, 'r'},
+		{"new", 0, 0, 'n'},
 		{"tracks", 1, 0, 't'},
 		{"sides", 1, 0, 's'},
+		{"tracklen", 1, 0, 'T'},
+		{"sectorsize", 1, 0, 'S'},
+		{"sectrack", 1, 0, 'P'},
+		{"amsdostype", 1, 0, 'A'},
                 {0, 0, 0, 0}
         };
         int c;
@@ -222,10 +249,14 @@ int main(int argc, char *argv[]) {
         char *output_filename = NULL;
 	uint8_t tracks = 40;
 	uint8_t sides = 1;
+	uint8_t sectors_per_track = 9;
+	uint8_t sectorsize = 2;
+	uint16_t tracklen = 0x1200;
+	amsdos_disk_type type = DISK_TYPE_DATA;
 
         do {
                 int option_index = 0;
-                c = getopt_long(argc, argv, "lie:u:o:d:r:a:w:tsh",
+                c = getopt_long(argc, argv, "lie:u:o:d:r:a:w:tsnTSPhA:",
 				long_options, &option_index);
                 switch(c) {
                 case 'h':
@@ -242,6 +273,9 @@ int main(int argc, char *argv[]) {
                         option = EXPORT;
                         target_filename = optarg;
                         break;
+		case 'n':
+			option = NEW;
+			break;
                 case 'u':
                         target_user = atoi(optarg);
                         break;
@@ -269,6 +303,18 @@ int main(int argc, char *argv[]) {
                         break;			
 		case 's':
 			sides = atoi(optarg);
+			break;
+		case 'T':
+			tracklen = atoi(optarg);
+			break;
+		case 'S':
+			sectorsize = atoi(optarg);
+			break;
+		case 'P':
+			sectors_per_track = atoi(optarg);
+			break;
+		case 'A':
+			type = AMSDOS_DISK_TYPE(optarg);
 			break;
                 }
         } while (c != -1);
@@ -299,6 +345,10 @@ int main(int argc, char *argv[]) {
 	case READ:
 		return read_dsk(target_filename, tracks, 
 				sides, dsk_filename);
+	case NEW:
+		return new_dsk(dsk_filename, tracks, sides, 
+			       sectors_per_track, sectorsize, 
+			       tracklen, type);
         }
         return result;
 }

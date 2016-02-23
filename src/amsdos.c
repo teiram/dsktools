@@ -49,6 +49,20 @@ static uint8_t base_track_index(amsdos_type *amsdos) {
 	}
 }
 
+static uint8_t base_sector(amsdos_disk_type type) {
+	switch (type) {
+	case DISK_TYPE_DATA:
+		return BASE_SECTOR_DATA;
+	case DISK_TYPE_IBM:
+		return BASE_SECTOR_IBM;
+	case DISK_TYPE_SYSTEM:
+		return BASE_SECTOR_SYS;
+	default:
+		LOG(LOG_ERROR, "Unknown type of disk %d", type);
+		return 0;
+	}
+}
+
 static const char* get_basename(const char *name) {
 	/* 
 	 * Take only the last path segment. Only considering
@@ -466,7 +480,42 @@ amsdos_type *amsdos_new(const char *filename) {
 		return NULL;
 	}
 }
-		
+
+amsdos_type *amsdos_new_from_scratch(uint8_t tracks, uint8_t sides, 
+				     uint8_t sectors_per_track,
+				     uint8_t sector_size,
+				     uint16_t tracklen, 
+				     amsdos_disk_type type) {
+	dsk_type *dsk = dsk_new_from_scratch(DSK, tracks, sides, tracklen);
+	amsdos_type *amsdos = (amsdos_type*) calloc(1, sizeof(amsdos_type));
+	amsdos->dsk = dsk;
+
+	for (int i = 0; i < tracks; i++) {
+		for (int j = 0; j < sides; j++) {
+			track_header_type *track = 
+				dsk_track_info_get(dsk, (i << (sides - 1)) + j, false);
+			dsk_track_info_init(track, i, j, sector_size, 
+					    sectors_per_track, 82);
+			uint8_t first_sector = base_sector(type);
+			for (int k = 0; k < sectors_per_track; k++) {
+				track->sector_info[k].track = i;
+				track->sector_info[k].side = j;
+				track->sector_info[k].sector_id = 
+					first_sector + k;
+				track->sector_info[k].size = sector_size;
+			}
+		}
+	}
+	amsdos_dir_type dir_entry;
+	for (int i = 0; i < AMSDOS_NUM_DIRENT; i++) {
+		amsdos_dir_get(amsdos, &dir_entry, i);
+		memset(&dir_entry, 0xe5, sizeof(amsdos_dir_type));
+		dir_entry.user = AMSDOS_USER_DELETED;
+		amsdos_dir_set(amsdos, &dir_entry, i);
+	}
+	return amsdos;
+}
+
 void amsdos_delete(amsdos_type *amsdos) {
 	if (amsdos) {
 		if (amsdos->dsk) {

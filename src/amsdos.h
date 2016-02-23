@@ -22,6 +22,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 #include "dsk.h"
 
 #define AMSDOS_NUM_DIRENT       64
@@ -40,10 +41,13 @@
 #define BASE_SECTOR_DATA 0xC1
 #define AMSDOS_SECTOR_SIZE 512
 
-#define AMSDOS_DISK_TYPE(type) \
+#define AMSDOS_DISK_STR(type) \
 	type == DISK_TYPE_DATA ? "DATA" : \
 		type == DISK_TYPE_IBM ? "IBM" : \
 		type == DISK_TYPE_SYSTEM ? "SYSTEM" : "UNKNOWN"
+
+#define AMSDOS_DISK_TYPE(str) \
+	strcmp(str, "DATA") ? strcmp(str, "IBM") ? strcmp(str, "SYSTEM") ? DISK_TYPE_UNKNOWN : DISK_TYPE_SYSTEM : DISK_TYPE_IBM : DISK_TYPE_DATA
 
 typedef enum {
 	DISK_TYPE_DATA = 0,
@@ -95,6 +99,11 @@ typedef struct {
 } amsdos_info_type;
 
 amsdos_type *amsdos_new(const char *filename);
+amsdos_type *amsdos_new_from_scratch(uint8_t tracks, uint8_t sides, 
+				     uint8_t sectors_per_track,
+				     uint8_t sector_size,
+				     uint16_t tracklen, 
+				     amsdos_disk_type type);
 void amsdos_delete(amsdos_type *amsdos);
 
 amsdos_info_type *amsdos_info_get(amsdos_type *amsdos, amsdos_info_type *info);
