@@ -27,6 +27,10 @@ fddriver_type *fddriver_new(const char *device) {
 	return NULL;
 }
 
+void fddriver_retries_set(fddriver_type *fddriver, uint8_t retries) {
+	LOG(LOG_ERROR, "Unsupported platform");
+}
+
 void fddriver_delete(fddriver_type *fddriver) {
 }
 
