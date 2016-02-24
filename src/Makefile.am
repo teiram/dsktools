@@ -1,6 +1,10 @@
 AM_CFLAGS = -Wall -std=c99 -D_POSIX_C_SOURCE=200809L -O2
 AM_LDFLAGS = 
 
+if ENABLE_GUI
+SUBDIRS = gui
+endif
+
 lib_LTLIBRARIES = libdsk.la
 libdsk_la_SOURCES = dsk.c amsdos.c log.c error.c
 if LINUX
