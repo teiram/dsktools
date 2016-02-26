@@ -38,7 +38,7 @@ case "$host" in
   ;;
 esac
 
-PKG_CHECK_MODULES(GTK, gtk+-3.0,
+PKG_CHECK_MODULES(GTK, gtk+-3.0 gmodule-2.0,
 		       AM_CONDITIONAL([ENABLE_GUI], [true]),
 		       AM_CONDITIONAL([ENABLE_GUI], [false]))
 

@@ -1,6 +1,7 @@
 dskwrite
 dskread
 dskmgmt
+dskgui
 *.o
 *~
 *.la

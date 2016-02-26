@@ -1,10 +1,6 @@
 AM_CFLAGS = -Wall -std=c99 -D_POSIX_C_SOURCE=200809L -O2
 AM_LDFLAGS = 
 
-if ENABLE_GUI
-SUBDIRS = gui
-endif
-
 lib_LTLIBRARIES = libdsk.la
 libdsk_la_SOURCES = dsk.c amsdos.c log.c error.c
 if LINUX
@@ -22,3 +18,12 @@ dskmgmt_LDADD = libdsk.la
 dskread_LDADD = libdsk.la
 dskwrite_LDADD = libdsk.la
 
+if ENABLE_GUI
+#SUBDIRS = gui
+#AM_CPPFLAGS = @GTK_CFLAGS@
+
+bin_PROGRAMS = dskgui
+dskgui_SOURCES = gui/dskgui.c gui/app_model.c gui/callbacks.c
+dskgui_LDADD = libdsk.la @GTK_LIBS@
+dskgui_CFLAGS = $(AM_CFLAGS) @GTK_CFLAGS@ 
+endif

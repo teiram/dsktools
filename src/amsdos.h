@@ -115,6 +115,8 @@ void amsdos_dir_set(amsdos_type *amsdos,
 		    amsdos_dir_type *dir_entry,
 		    int index);
 char *amsdos_dir_name_get(amsdos_dir_type *dir, char *buffer);
+char *amsdos_dir_basename_get(amsdos_dir_type *dir, char *buffer);
+char *amsdos_dir_extension_get(amsdos_dir_type *dir, char *buffer);
 uint32_t amsdos_dir_size_get(amsdos_dir_type* dir_entries, int index);
 bool amsdos_dir_deleted(amsdos_dir_type *dir_entry);
 

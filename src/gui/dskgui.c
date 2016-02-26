@@ -1,4 +1,5 @@
 #include <gtk/gtk.h>
+#include "app_model.h"
 
 int main(int argc, char **argv) {
 	GError     *error = NULL;
@@ -20,11 +21,27 @@ int main(int argc, char **argv) {
 	GtkWidget *window = 
 		GTK_WIDGET(gtk_builder_get_object(builder, "main_window"));
 
+	GtkListStore *file_store = 
+		GTK_LIST_STORE(gtk_builder_get_object(builder,
+						      "liststore_files"));
+
+	app_model_type *model = app_model_new();
+	app_model_set_builder(model, builder);
+
+	gtk_list_store_clear(file_store);
+	GtkTreeIter iter;
+	gtk_list_store_append(file_store, &iter);
+	gtk_list_store_set(file_store, &iter,
+			   0, "GALAXIAN",
+			   1, "BAS",
+			   2, 23433,
+			   -1);
+	  
 	/* Connect signals */
-	gtk_builder_connect_signals(builder, NULL);
+	gtk_builder_connect_signals(builder, model);
 
 	/* Destroy builder, since we don't need it anymore */
-	g_object_unref(G_OBJECT(builder));
+	//g_object_unref(G_OBJECT(builder));
 
 	/* Show main window. Any other widget is automatically shown 
 	   by GtkBuilder */

@@ -157,14 +157,14 @@ static bool is_amsdos_header(amsdos_header_type *header) {
 	return header->checksum == get_amsdos_checksum(header);
 }
 
-static char *dir_entry_get_basename(amsdos_dir_type *dir_entry, char *buffer) {
+char *amsdos_dir_basename_get(amsdos_dir_type *dir_entry, char *buffer) {
 	memcpy(buffer, dir_entry->name, AMSDOS_NAME_LEN);
 	buffer[AMSDOS_NAME_LEN] = 0;
 	return buffer;
 }
 
-static char *dir_entry_get_extension(amsdos_dir_type *dir_entry, 
-				     char *buffer) {
+char *amsdos_dir_extension_get(amsdos_dir_type *dir_entry, 
+			       char *buffer) {
 	memcpy(buffer, dir_entry->extension, AMSDOS_EXT_LEN);
 	buffer[AMSDOS_EXT_LEN] = 0;
 	/* Strip attributes */
@@ -228,9 +228,9 @@ static int8_t get_dir_entry_for_file(amsdos_type *amsdos,
 	LOG(LOG_DEBUG,"get_dir_entry_for_file(amsdos(name=%s.%s, user %u))", filename, extension, user);
 	for (int i = 0; i < AMSDOS_NUM_DIRENT; i++) {
 		amsdos_dir_get(amsdos, entry, i);
-		if (strncmp(filename, dir_entry_get_basename(entry, buffer), 
+		if (strncmp(filename, amsdos_dir_basename_get(entry, buffer), 
 			    AMSDOS_NAME_LEN) == 0 &&
-		    strncmp(extension, dir_entry_get_extension(entry, buffer),
+		    strncmp(extension, amsdos_dir_extension_get(entry, buffer),
 			    AMSDOS_EXT_LEN) == 0 &&
 		    entry->user == user) {
 			LOG(LOG_DEBUG, "Found matching directory entry %u", i);
@@ -449,9 +449,9 @@ bool amsdos_dir_deleted(amsdos_dir_type *dir_entry) {
 }
 
 char *amsdos_dir_name_get(amsdos_dir_type *dir_entry, char *buffer) {
-	dir_entry_get_basename(dir_entry, buffer);
+	amsdos_dir_basename_get(dir_entry, buffer);
 	buffer[AMSDOS_NAME_LEN] = '.';
-	dir_entry_get_extension(dir_entry, buffer + AMSDOS_NAME_LEN + 1);
+	amsdos_dir_extension_get(dir_entry, buffer + AMSDOS_NAME_LEN + 1);
 	return buffer;
 }
 

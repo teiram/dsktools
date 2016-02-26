@@ -38,26 +38,37 @@
 
 static bool is_dsk_image(dsk_type *dsk) {
 	if (dsk && dsk->dsk_info) {
-		return !strncmp(dsk->dsk_info->magic, 
-				DSK_HEADER, 8) ? true: false;
+		if (!strncmp(dsk->dsk_info->magic, 
+			     DSK_HEADER, 8)) {
+			return true;
+		} else {
+			char header[35];
+			snprintf(header, 34, "%s", dsk->dsk_info->magic);
+			LOG(LOG_DEBUG, 
+			    "Image header doesn't match the expected DSK header. Expected: %s, header: %s", 
+			    DSK_HEADER, header);
+		}
 	} else {
-		char header[35];
-		snprintf(header, 34, "%s", dsk->dsk_info->magic);
-		LOG(LOG_DEBUG, "Image header doesn't match the expected DSK header. Expected: %s, header: %s", DSK_HEADER, header);
-		return false;
+		LOG(LOG_WARN, "Uninitialized disk info");
 	}
+	return false;
 }
 
 static bool is_edsk_image(dsk_type *dsk) {
 	if (dsk && dsk->dsk_info) {
-		return !strncmp(dsk->dsk_info->magic,
-				EDSK_HEADER, 21) ? true : false;
+		if (!strncmp(dsk->dsk_info->magic,
+			     EDSK_HEADER, 21)) {
+			return true;
+		} else {
+			char header[35];
+			snprintf(header, 34, "%s", dsk->dsk_info->magic);
+			LOG(LOG_DEBUG, "Image header doesn't match the expected EDSK header. Expected %s, header: %s", 
+			    EDSK_HEADER, header);
+		}
 	} else {
-		char header[35];
-		snprintf(header, 34, "%s", dsk->dsk_info->magic);
-		LOG(LOG_DEBUG, "Image header doesn't match the expected EDSK header. Expected %s, header %s", EDSK_HEADER, header);
-		return false;
+		LOG(LOG_WARN, "Uninitialized disk info");
 	}
+	return false;
 }
 
 uint32_t dsk_track_size_get(dsk_type *dsk, uint8_t track) {
@@ -302,32 +313,44 @@ dsk_type *dsk_new_from_scratch(dsk_image_type type,
 	return dsk;
 }
 
+static int setup_dsk_header(dsk_type *dsk, FILE *fd) {
+	dsk->dsk_info = (dsk_header_type *) malloc(sizeof(dsk_header_type));
+	int nread = fread(dsk->dsk_info, 
+			  sizeof(dsk_header_type), 1, fd);
+	return nread == 1 ? DSK_OK : DSK_ERROR;
+}
+
+static int setup_dsk_image(dsk_type *dsk, FILE *fd) {
+	uint32_t disk_size = get_image_size(dsk);
+	if (disk_size > 0) {
+		dsk->image = (uint8_t*) malloc(disk_size);
+		int nread = fread(dsk->image,
+			      disk_size, 1, fd);
+		return nread == 1 ? DSK_OK : DSK_ERROR;
+	} else {
+		LOG(LOG_ERROR, "Unable to calculate disk image");
+		return DSK_ERROR;
+	}
+}
+
+static void setup_track_info(dsk_type *dsk) {
+	dsk->track_info = (track_header_type**) 
+		calloc(dsk->dsk_info->tracks,
+		       sizeof(track_header_type**));
+}
+
 dsk_type *dsk_new(const char *filename) {
 	dsk_type *dsk = calloc(1, sizeof(dsk_type));
-	FILE *fh = 0;
-	if ((fh = fopen(filename, "r")) != 0) {
-		dsk->dsk_info = (dsk_header_type *) malloc(sizeof(dsk_header_type));
-		int nread = fread(dsk->dsk_info, 
-				  sizeof(dsk_header_type), 1, fh);
-		if (nread == 1) {
-			uint32_t disk_size = get_image_size(dsk);
-			dsk->image = (uint8_t*) malloc(disk_size);
-			nread = fread(dsk->image,
-				      disk_size, 1, fh);
-			fclose(fh);
-			if (nread == 1) {
-				dsk->track_info = (track_header_type**) 
-					calloc(dsk->dsk_info->tracks,
-					       sizeof(track_header_type**));
+	FILE *fd = 0;
+	if ((fd = fopen(filename, "r")) != 0) {
+		if (setup_dsk_header(dsk, fd) == DSK_OK) {
+			if (setup_dsk_image(dsk, fd) == DSK_OK) {
+				setup_track_info(dsk);
+				fclose(fd);
 				return dsk;
 			}
-		} else {
-			LOG(LOG_ERROR, "Unable to read %d, was %d\n",
-			    sizeof(dsk_header_type), nread);
 		}
-	}
-	if (fh != 0) {
-		fclose(fh);
+		fclose(fd);
 	}
 	dsk_delete(dsk);
 	return 0;
