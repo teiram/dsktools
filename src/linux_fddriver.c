@@ -56,7 +56,7 @@ fddriver_type *fddriver_new(const char *device) {
 	int8_t drive_number = get_drive_number(device);
 	LOG(LOG_TRACE, "Drive number is %d", drive_number);
 	if (drive_number < 0) {
-		error_add("Extracting drive number from device %s",
+		error_add_error("Extracting drive number from device %s",
 			  device);
 		return NULL;
 	}
@@ -66,7 +66,7 @@ fddriver_type *fddriver_new(const char *device) {
 	if (fddriver->fd < 0) {
 		LOG(LOG_ERROR, "Error opening floppy device: %s", 
 		    strerror(errno));
-		error_add("Opening floppy device %s. %s", 
+		error_add_error("Opening floppy device %s. %s", 
 			  device, strerror(errno));
 		free(fddriver);
 		return NULL;
@@ -96,7 +96,7 @@ void fddriver_delete(fddriver_type *fddriver) {
 	free(fddriver);
 }
 
-void fddriver_retries_set(fddriver_type *fddriver, uint8_t retries) {
+void fddriver_set_retries(fddriver_type *fddriver, uint8_t retries) {
 	fddriver->retries = retries;
 }
 	
@@ -104,7 +104,7 @@ int fddriver_reset(fddriver_type *fddriver) {
 	LOG(LOG_DEBUG, "fddriver_reset");
 	if (ioctl(fddriver->fd, FDRESET) < 0) {
 		LOG(LOG_ERROR, "Error resetting fdc: %s", strerror(errno));
-		error_add("Resetting fdc: %s", strerror(errno));
+		error_add_error("Resetting fdc: %s", strerror(errno));
 		return DSK_ERROR;
 	}
 	return DSK_OK;
@@ -162,23 +162,23 @@ int fddriver_format_track(fddriver_type *fddriver, track_header_type *track) {
 	int err = ioctl(fddriver->fd, FDRAWCMD, &raw_cmd);
 	if (err < 0) {
 		LOG(LOG_ERROR, "Error formatting: %s", strerror(errno));
-		error_add("FDRAWCMD ioctl error %s", strerror(errno));
+		error_add_error("FDRAWCMD ioctl error %s", strerror(errno));
 		return DSK_ERROR;
 	}
 	if (raw_cmd.reply[0] & 0x40) {
 		LOG(LOG_ERROR, "Could not format track %i", 
 		    track->track_number);
-		error_add("FDRAWCMD returned error on format of track %i: %02x",
+		error_add_error("FDRAWCMD returned error on format of track %i: %02x",
 			  track->track_number, raw_cmd.reply[0]);
 		return DSK_ERROR;
 	}
 	return DSK_OK;
 }
 
-int fddriver_sector_write(fddriver_type *fddriver, track_header_type *track,
+int fddriver_write_sector(fddriver_type *fddriver, track_header_type *track,
 			  uint8_t sector, uint8_t *data) {
 
-	LOG(LOG_DEBUG, "fddriver_sector_write(track=%u, sector=%u)",
+	LOG(LOG_DEBUG, "fddriver_write_sector(track=%u, sector=%u)",
 	    track->track_number,
 	    sector);
 
@@ -219,7 +219,7 @@ int fddriver_sector_write(fddriver_type *fddriver, track_header_type *track,
 		int status = ioctl(fddriver->fd, FDRAWCMD, &raw_cmd);
 		if (status < 0) {
 			LOG(LOG_ERROR, "Error writing: %s", strerror(errno));
-			error_add("FDRAWCMD FD_WRITE ioctl error %s", 
+			error_add_error("FDRAWCMD FD_WRITE ioctl error %s", 
 				  strerror(errno));
 			return DSK_ERROR;
 		}
@@ -236,17 +236,17 @@ int fddriver_sector_write(fddriver_type *fddriver, track_header_type *track,
 
 	if (retry > fddriver->retries) {
 		LOG(LOG_ERROR, "Could not write sector %0X", sector);
-		error_add("FDRAWCMD FD_WRITE exhausted retries");
+		error_add_error("FDRAWCMD FD_WRITE exhausted retries");
 		return DSK_ERROR;
 	}
 	return DSK_OK;
 }
 
-int fddriver_sector_read(fddriver_type *fddriver, 
+int fddriver_read_sector(fddriver_type *fddriver, 
 			 track_header_type *track,
 			 uint8_t sector,
 			 uint8_t *buffer) {
-	LOG(LOG_DEBUG, "fddriver_sector_read(track=%u, sector=%u)",
+	LOG(LOG_DEBUG, "fddriver_read_sector(track=%u, sector=%u)",
 	    track->track_number,
 	    sector);
 
@@ -276,7 +276,7 @@ int fddriver_sector_read(fddriver_type *fddriver,
 		int err = ioctl(fddriver->fd, FDRAWCMD, &raw_cmd);
 		if (err < 0) {
 			LOG(LOG_ERROR, "Error reading: %s", strerror(errno));
-			error_add("FDRAWCMD READ_DATA ioctl error %s", 
+			error_add_error("FDRAWCMD READ_DATA ioctl error %s", 
 				  strerror(errno));
 			return DSK_ERROR;
 		}
@@ -299,7 +299,7 @@ int fddriver_sector_read(fddriver_type *fddriver,
 		LOG(LOG_ERROR, "Error reading sector %u: {%02x %02x %02x}",
 		    sector_info->sector_id,
 		    raw_cmd.reply[0],raw_cmd.reply[1], raw_cmd.reply[2]);
-		error_add("FDRAWCMD READ_DATA exhausted retries");
+		error_add_error("FDRAWCMD READ_DATA exhausted retries");
 		return DSK_ERROR;
 	}
 	return DSK_OK;
@@ -343,7 +343,7 @@ int fddriver_recalibrate(fddriver_type *fddriver) {
 	err = ioctl(fddriver->fd, FDRAWCMD, &raw_cmd);
 	if (err < 0) {
 		LOG(LOG_ERROR, "Error recalibrating %s", strerror(errno));
-		error_add("FDRAWCMD FD_RECALIBRATE ioctl error %s", 
+		error_add_error("FDRAWCMD FD_RECALIBRATE ioctl error %s", 
 			  strerror(errno));
 		return DSK_ERROR;
 	}
@@ -365,7 +365,7 @@ int fddriver_recalibrate(fddriver_type *fddriver) {
 	err = ioctl(fddriver->fd, FDRAWCMD, &raw_cmd);
 	if (err < 0) {
 		LOG(LOG_ERROR, "Error recalibrating %s", strerror(errno));
-		error_add("FDRAWCMD FD_GETSTATUS ioctl error %s", 
+		error_add_error("FDRAWCMD FD_GETSTATUS ioctl error %s", 
 			  strerror(errno));
 		return DSK_ERROR;
 	}
@@ -384,7 +384,7 @@ int fddriver_recalibrate(fddriver_type *fddriver) {
 	err = ioctl(fddriver->fd, FDRAWCMD, &raw_cmd);
 	if (err < 0) {
 		LOG(LOG_ERROR, "Error recalibrating %s", strerror(errno));
-		error_add("FDRAWCMD FD_RECALIBRATE ioctl error %s", 
+		error_add_error("FDRAWCMD FD_RECALIBRATE ioctl error %s", 
 			  strerror(errno));
 		return DSK_ERROR;
 	}
@@ -399,7 +399,7 @@ int fddriver_recalibrate(fddriver_type *fddriver) {
 	if (err < 0) {
 		LOG(LOG_ERROR, "Error getting drive status %s", 
 		    strerror(errno));
-		error_add("FDRAWCMD FD_GETSTATUS ioctl error %s", 
+		error_add_error("FDRAWCMD FD_GETSTATUS ioctl error %s", 
 			  strerror(errno));
 		return DSK_ERROR;
 	}
@@ -415,12 +415,12 @@ int fddriver_recalibrate(fddriver_type *fddriver) {
 	- disc drive doesn't exist
 	*/
 	LOG(LOG_ERROR, "Disc drive malfunction, or disc drive not connected");
-	error_add("Unable to recalibrate. Giving up");
+	error_add_error("Unable to recalibrate. Giving up");
 	return DSK_ERROR;
 }
 
-int fddriver_track_seek(fddriver_type *fddriver, uint8_t track) {
-	LOG(LOG_DEBUG, "fddriver_track_seek(track=%u)", track);
+int fddriver_seek_track(fddriver_type *fddriver, uint8_t track) {
+	LOG(LOG_DEBUG, "fddriver_seek_track(track=%u)", track);
 	struct floppy_raw_cmd raw_cmd;
 	
 	init_raw_cmd(&raw_cmd);
@@ -433,14 +433,14 @@ int fddriver_track_seek(fddriver_type *fddriver, uint8_t track) {
 	raw_cmd.cmd[raw_cmd.cmd_count++] = track;
 	if (ioctl(fddriver->fd, FDRAWCMD, &raw_cmd) < 0) {
                 LOG(LOG_ERROR, "Seek ioctl error: %s", strerror(errno));
-		error_add("FDRAWCMD FD_SEEK ioctl error %s", 
+		error_add_error("FDRAWCMD FD_SEEK ioctl error %s", 
 			  strerror(errno));
 		return DSK_ERROR;
         }
 	return DSK_OK;
 }
 	
-int fddriver_sectorids_read(fddriver_type *fddriver, 
+int fddriver_read_sectorids(fddriver_type *fddriver, 
 			    track_header_type *track) {
 	LOG(LOG_DEBUG, "fddriver_sectorids_read(side=%u, track=%u)", 
 	    track->side_number,
@@ -466,7 +466,7 @@ int fddriver_sectorids_read(fddriver_type *fddriver,
 	int err = ioctl(fddriver->fd, FDRAWCMD, cmds);
 	if (err < 0) {
 		LOG(LOG_ERROR, "reading ids %s", strerror(errno));
-		error_add("FDRAWCMD READ_ID ioctl error %s", 
+		error_add_error("FDRAWCMD READ_ID ioctl error %s", 
 			  strerror(errno));
 		return DSK_ERROR;
 	}
@@ -541,7 +541,7 @@ int fddriver_sectorids_read(fddriver_type *fddriver,
 	if (err < 0) {
 		free(buffer);
 		LOG(LOG_ERROR, "Error reading id: %s", strerror(errno));
-		error_add("FDRAWCMD READ_ID ioctl error %s", 
+		error_add_error("FDRAWCMD READ_ID ioctl error %s", 
 			  strerror(errno));
 		return DSK_ERROR;
 	}

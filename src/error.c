@@ -65,7 +65,7 @@ static void shift_messages() {
 	app_error->errnum--;
 }
 
-void error_add(const char *fmt, ... ) {
+void error_add_error(const char *fmt, ... ) {
 	if (!app_error) {
 		error_init();
 	}
@@ -96,7 +96,7 @@ static void init_output_message() {
 	app_error->error_output[0] = 0;
 }
 
-const char *error_get() {
+const char *error_get_error_message() {
 	init_output_message();
 	int output_size = 0;
 	for (int i = app_error->errnum - 1; i >= 0; i--) {

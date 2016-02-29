@@ -37,7 +37,7 @@
 
 static uint8_t base_track_index(amsdos_type *amsdos) {
 	dsk_info_type dsk_info;
-	dsk_info_get(amsdos->dsk, &dsk_info);
+	dsk_get_info(amsdos->dsk, &dsk_info);
 
 	switch (dsk_info.first_sector_id) {
 	case BASE_SECTOR_IBM:
@@ -157,13 +157,13 @@ static bool is_amsdos_header(amsdos_header_type *header) {
 	return header->checksum == get_amsdos_checksum(header);
 }
 
-char *amsdos_dir_basename_get(amsdos_dir_type *dir_entry, char *buffer) {
+char *amsdos_get_dir_basename(amsdos_dir_type *dir_entry, char *buffer) {
 	memcpy(buffer, dir_entry->name, AMSDOS_NAME_LEN);
 	buffer[AMSDOS_NAME_LEN] = 0;
 	return buffer;
 }
 
-char *amsdos_dir_extension_get(amsdos_dir_type *dir_entry, 
+char *amsdos_get_dir_extension(amsdos_dir_type *dir_entry, 
 			       char *buffer) {
 	memcpy(buffer, dir_entry->extension, AMSDOS_EXT_LEN);
 	buffer[AMSDOS_EXT_LEN] = 0;
@@ -178,8 +178,8 @@ static uint8_t get_free_dir_entry_count(amsdos_type *amsdos) {
 	uint8_t free_entries = 0;
 	amsdos_dir_type dir_entry;
 	for (int i = 0; i < AMSDOS_NUM_DIRENT; i++) {
-		amsdos_dir_get(amsdos, &dir_entry, i);
-		if (amsdos_dir_deleted(&dir_entry)) {
+		amsdos_get_dir(amsdos, &dir_entry, i);
+		if (amsdos_is_dir_deleted(&dir_entry)) {
 			++free_entries;
 		}
 	}
@@ -191,8 +191,8 @@ static int8_t get_next_free_dir_entry(amsdos_type *amsdos) {
 	LOG(LOG_DEBUG, "get_next_free_dir_entry");
 	amsdos_dir_type dir_entry;
 	for (int i = 0; i < AMSDOS_NUM_DIRENT; i++) {
-		amsdos_dir_get(amsdos, &dir_entry, i);
-		if (amsdos_dir_deleted(&dir_entry)) {
+		amsdos_get_dir(amsdos, &dir_entry, i);
+		if (amsdos_is_dir_deleted(&dir_entry)) {
 			return i;
 		}
 	}
@@ -208,11 +208,11 @@ static amsdos_dir_type *init_dir_entry(amsdos_dir_type *dir_entry) {
 
 static uint32_t get_dir_entry_offset(amsdos_type *amsdos, int index) {
 	dsk_info_type dsk_info;
-	dsk_info_get(amsdos->dsk, &dsk_info);
+	dsk_get_info(amsdos->dsk, &dsk_info);
 
 	uint8_t sector_id = dsk_info.first_sector_id + (index >> 4);
 	uint8_t track = base_track_index(amsdos);
-	return dsk_sector_offset_get(amsdos->dsk, track, 0, sector_id)
+	return dsk_get_sector_offset(amsdos->dsk, track, 0, sector_id)
 		+ ((index & 15) << 5);
 }
 
@@ -227,10 +227,10 @@ static int8_t get_dir_entry_for_file(amsdos_type *amsdos,
 	get_amsdos_extension(name, (char *)&extension);
 	LOG(LOG_DEBUG,"get_dir_entry_for_file(amsdos(name=%s.%s, user %u))", filename, extension, user);
 	for (int i = 0; i < AMSDOS_NUM_DIRENT; i++) {
-		amsdos_dir_get(amsdos, entry, i);
-		if (strncmp(filename, amsdos_dir_basename_get(entry, buffer), 
+		amsdos_get_dir(amsdos, entry, i);
+		if (strncmp(filename, amsdos_get_dir_basename(entry, buffer), 
 			    AMSDOS_NAME_LEN) == 0 &&
-		    strncmp(extension, amsdos_dir_extension_get(entry, buffer),
+		    strncmp(extension, amsdos_get_dir_extension(entry, buffer),
 			    AMSDOS_EXT_LEN) == 0 &&
 		    entry->user == user) {
 			LOG(LOG_DEBUG, "Found matching directory entry %u", i);
@@ -245,7 +245,7 @@ static void read_entry_sector(amsdos_type *amsdos, FILE *fd, uint8_t sector,
 			      uint8_t remaining_records) {
 	uint8_t buffer[AMSDOS_SECTOR_SIZE];
 
-	dsk_sector_read(amsdos->dsk, buffer, sector);
+	dsk_read_sector(amsdos->dsk, buffer, sector);
 	fwrite(buffer, MIN(AMSDOS_SECTOR_SIZE, remaining_records << 7), 1, fd);
 }
 	
@@ -254,7 +254,7 @@ static void read_entry_blocks(amsdos_type *amsdos, FILE *fd,
 	char name[16];
 	LOG(LOG_DEBUG, 
 	    "read_entry_blocks(entry=%s, extent_low=%u, records=%u)",
-	    amsdos_dir_name_get(dir_entry, name),
+	    amsdos_get_dir_name(dir_entry, name),
 	    dir_entry->extent_low,
 	    dir_entry->record_count);
 	    
@@ -279,8 +279,8 @@ static bool is_block_in_use(amsdos_type *amsdos, uint8_t block) {
 	/* To be optimized */
 	amsdos_dir_type dir_entry;
 	for (int i = 0; i < AMSDOS_NUM_DIRENT; i++) {
-		amsdos_dir_get(amsdos, &dir_entry, i);
-		if (!amsdos_dir_deleted(&dir_entry)) {
+		amsdos_get_dir(amsdos, &dir_entry, i);
+		if (!amsdos_is_dir_deleted(&dir_entry)) {
 			int block_count = (dir_entry.record_count + 7) >> 3;
 			for (int j = 0; j < block_count; j++) {
 				if (dir_entry.blocks[j] == block) {
@@ -297,7 +297,7 @@ static bool is_block_in_use(amsdos_type *amsdos, uint8_t block) {
 
 static uint32_t get_block_count(amsdos_type *amsdos) {
 	dsk_info_type dsk_info;
-	dsk_info_get(amsdos->dsk, &dsk_info);
+	dsk_get_info(amsdos->dsk, &dsk_info);
 	return dsk_info.sectors >> 1;
 }
 
@@ -306,7 +306,7 @@ static int8_t get_free_block(amsdos_type *amsdos) {
 		uint8_t base_block = 0;
 		for (int i = 0; i < base_track_index(amsdos); i++) {
 			base_block += 
-				SHIFTH(dsk_track_size_get(amsdos->dsk, i)
+				SHIFTH(dsk_get_track_size(amsdos->dsk, i)
 				       - sizeof(track_header_type), 10);
 		}
 		/* Skip directory */
@@ -340,10 +340,10 @@ static void read_sector(amsdos_type *amsdos, FILE *fd,
 		memcpy(buffer, header, header_size);
 		fread(buffer + header_size, AMSDOS_SECTOR_SIZE - header_size, 
 		      1, fd);
-		dsk_sector_write(amsdos->dsk, buffer, sector);
+		dsk_write_sector(amsdos->dsk, buffer, sector);
 	} else {
 		fread(buffer, AMSDOS_SECTOR_SIZE, 1, fd);
-		dsk_sector_write(amsdos->dsk, buffer, sector);
+		dsk_write_sector(amsdos->dsk, buffer, sector);
 	}
 }
 
@@ -366,8 +366,8 @@ static off_t add_file_checks(amsdos_type *amsdos, const char *source_file,
 			     const char *target_name, uint8_t user) {
 	LOG(LOG_DEBUG, "add_file_checks(source=%s, target=%s, user=%u)",
 	    source_file, target_name, user);
-	if (amsdos_file_exists(amsdos, target_name, user)) {
-		error_add("File %s(%d) already exists in dsk",
+	if (amsdos_exists_file(amsdos, target_name, user)) {
+		error_add_error("File %s(%d) already exists in dsk",
 			  target_name, user);
 		return DSK_ERROR;
 	}
@@ -378,14 +378,14 @@ static off_t add_file_checks(amsdos_type *amsdos, const char *source_file,
 	if (size < 0) {
 		LOG(LOG_ERROR, "Unable to determine file size %s", 
 		    source_file);
-		error_add("Unable to determine file size for %s",
+		error_add_error("Unable to determine file size for %s",
 			  source_file);
 		return DSK_ERROR;
 	}
 
 	uint16_t free_dir_entries = get_free_dir_entry_count(amsdos);
 	if (size > (free_dir_entries * AMSDOS_BLOCKS_DIRENT * 1024)) {
-		error_add("Not enough free directory entries %d", 
+		error_add_error("Not enough free directory entries %d", 
 			  free_dir_entries);
 		return DSK_ERROR;
 	}
@@ -401,7 +401,7 @@ static int add_file_internal(amsdos_type *amsdos, amsdos_header_type *header,
 	for (off_t pos = 0; pos < size;) {
 		int8_t dir_entry_index = get_next_free_dir_entry(amsdos);
 		if (dir_entry_index < 0) {
-			error_add("Exhausted directory entries");
+			error_add_error("Exhausted directory entries");
 			return DSK_ERROR;
 		}
 		amsdos_dir_type dir_entry;
@@ -435,27 +435,27 @@ static int add_file_internal(amsdos_type *amsdos, amsdos_header_type *header,
 				read_sector(amsdos, stream, NULL, sector + 1);
 				pos += AMSDOS_SECTOR_SIZE << 1;
 			} else {
-				error_add("Free blocks exhausted");
+				error_add_error("Free blocks exhausted");
 				return DSK_ERROR;
 			}
 		}
-		amsdos_dir_set(amsdos, &dir_entry, dir_entry_index);
+		amsdos_update_dir(amsdos, &dir_entry, dir_entry_index);
 	}
 	return DSK_OK;	
 }
 
-bool amsdos_dir_deleted(amsdos_dir_type *dir_entry) {
+bool amsdos_is_dir_deleted(amsdos_dir_type *dir_entry) {
 	return dir_entry->user == AMSDOS_USER_DELETED;
 }
 
-char *amsdos_dir_name_get(amsdos_dir_type *dir_entry, char *buffer) {
-	amsdos_dir_basename_get(dir_entry, buffer);
+char *amsdos_get_dir_name(amsdos_dir_type *dir_entry, char *buffer) {
+	amsdos_get_dir_basename(dir_entry, buffer);
 	buffer[AMSDOS_NAME_LEN] = '.';
-	amsdos_dir_extension_get(dir_entry, buffer + AMSDOS_NAME_LEN + 1);
+	amsdos_get_dir_extension(dir_entry, buffer + AMSDOS_NAME_LEN + 1);
 	return buffer;
 }
 
-uint32_t amsdos_dir_size_get(amsdos_dir_type* dir_entries, int index) {
+uint32_t amsdos_get_dir_size(amsdos_dir_type* dir_entries, int index) {
 	int blocks = 0;
 	int file_user = dir_entries[index].user;
 	int lookahead = index;
@@ -481,20 +481,20 @@ amsdos_type *amsdos_new(const char *filename) {
 	}
 }
 
-amsdos_type *amsdos_new_from_scratch(uint8_t tracks, uint8_t sides, 
-				     uint8_t sectors_per_track,
-				     uint8_t sector_size,
-				     uint16_t tracklen, 
-				     amsdos_disk_type type) {
-	dsk_type *dsk = dsk_new_from_scratch(DSK, tracks, sides, tracklen);
+amsdos_type *amsdos_new_empty(uint8_t tracks, uint8_t sides, 
+			      uint8_t sectors_per_track,
+			      uint8_t sector_size,
+			      uint16_t tracklen, 
+			      amsdos_disk_type type) {
+	dsk_type *dsk = dsk_new_empty(DSK, tracks, sides, tracklen);
 	amsdos_type *amsdos = (amsdos_type*) calloc(1, sizeof(amsdos_type));
 	amsdos->dsk = dsk;
 
 	for (int i = 0; i < tracks; i++) {
 		for (int j = 0; j < sides; j++) {
 			track_header_type *track = 
-				dsk_track_info_get(dsk, (i << (sides - 1)) + j, false);
-			dsk_track_info_init(track, i, j, sector_size, 
+				dsk_get_track_info(dsk, (i << (sides - 1)) + j, false);
+			dsk_init_track_info(track, i, j, sector_size, 
 					    sectors_per_track, 82);
 			uint8_t first_sector = base_sector(type);
 			for (int k = 0; k < sectors_per_track; k++) {
@@ -508,10 +508,10 @@ amsdos_type *amsdos_new_from_scratch(uint8_t tracks, uint8_t sides,
 	}
 	amsdos_dir_type dir_entry;
 	for (int i = 0; i < AMSDOS_NUM_DIRENT; i++) {
-		amsdos_dir_get(amsdos, &dir_entry, i);
+		amsdos_get_dir(amsdos, &dir_entry, i);
 		memset(&dir_entry, 0xe5, sizeof(amsdos_dir_type));
 		dir_entry.user = AMSDOS_USER_DELETED;
-		amsdos_dir_set(amsdos, &dir_entry, i);
+		amsdos_update_dir(amsdos, &dir_entry, i);
 	}
 	return amsdos;
 }
@@ -530,8 +530,8 @@ uint32_t amsdos_get_used_bytes(amsdos_type *amsdos) {
 	amsdos_dir_type dir_entry;
 	uint32_t bytes = 0;
 	for (i = 0; i < AMSDOS_NUM_DIRENT; i++) {
-		amsdos_dir_get(amsdos, &dir_entry, i);
-		if (!amsdos_dir_deleted(&dir_entry)) {
+		amsdos_get_dir(amsdos, &dir_entry, i);
+		if (!amsdos_is_dir_deleted(&dir_entry)) {
 			bytes += (dir_entry.record_count << 7);
 		}
 	}
@@ -539,9 +539,9 @@ uint32_t amsdos_get_used_bytes(amsdos_type *amsdos) {
 	return bytes;
 }
 
-amsdos_info_type *amsdos_info_get(amsdos_type *amsdos, 
+amsdos_info_type *amsdos_get_info(amsdos_type *amsdos, 
 				  amsdos_info_type *info) {
-	dsk_info_get(amsdos->dsk, &(info->dsk_info));
+	dsk_get_info(amsdos->dsk, &(info->dsk_info));
 	info->used = amsdos_get_used_bytes(amsdos);
 	switch (info->dsk_info.first_sector_id) {
 	case BASE_SECTOR_DATA:
@@ -559,10 +559,10 @@ amsdos_info_type *amsdos_info_get(amsdos_type *amsdos,
 	return info;
 }
 
-amsdos_dir_type *amsdos_dir_get(amsdos_type *amsdos, 
+amsdos_dir_type *amsdos_get_dir(amsdos_type *amsdos, 
 				amsdos_dir_type *dir_entry, 
 				int index) {
-	LOG(LOG_DEBUG, "amsdos_dir_get(index=%d)", index);
+	LOG(LOG_DEBUG, "amsdos_get_dir(index=%d)", index);
 	if (index < AMSDOS_NUM_DIRENT) {
 		uint32_t offset = get_dir_entry_offset(amsdos, index);
 		LOG(LOG_TRACE, "Copying from image offset %08x", offset);
@@ -574,10 +574,10 @@ amsdos_dir_type *amsdos_dir_get(amsdos_type *amsdos,
 	}
 }
 
-void amsdos_dir_set(amsdos_type *amsdos,
-			  amsdos_dir_type *dir_entry,
-			  int index) {
-	LOG(LOG_DEBUG, "amsdos_dir_set(index=%d, user=%u)", index,
+void amsdos_update_dir(amsdos_type *amsdos,
+		       amsdos_dir_type *dir_entry,
+		       int index) {
+	LOG(LOG_DEBUG, "amsdos_update_dir(index=%d, user=%u)", index,
 	    dir_entry->user);
 	if (index < AMSDOS_NUM_DIRENT) {
 		uint32_t offset = get_dir_entry_offset(amsdos, index);
@@ -590,11 +590,11 @@ void amsdos_dir_set(amsdos_type *amsdos,
 }
 
 
-int amsdos_file_get(amsdos_type *amsdos, 
+int amsdos_get_file(amsdos_type *amsdos, 
 		    const char *name, 
 		    uint8_t user,
 		    const char *destination) {
-	LOG(LOG_DEBUG, "amsdos_file_get(name=%s, destination=%s, user=%u)",
+	LOG(LOG_DEBUG, "amsdos_get_file(name=%s, destination=%s, user=%u)",
 	    name, destination, user);
 	amsdos_dir_type dir_entry, *dir_entry_p;
 
@@ -604,7 +604,7 @@ int amsdos_file_get(amsdos_type *amsdos,
 		if (fd) {
 			do {
 				read_entry_blocks(amsdos, fd, &dir_entry);
-				dir_entry_p = amsdos_dir_get(amsdos, 
+				dir_entry_p = amsdos_get_dir(amsdos, 
 							     &dir_entry, 
 							     ++index);
 			} while (dir_entry_p && 
@@ -613,21 +613,21 @@ int amsdos_file_get(amsdos_type *amsdos,
 			fclose(fd);
 			return DSK_OK;
 		} else {
-			error_add("Unable to write to file %s: %s", 
+			error_add_error("Unable to write to file %s: %s", 
 				  destination,
 				  strerror(errno));
 			return DSK_ERROR;
 		}
 	} else {
-		error_add("Unable to find file %s\n", name);
+		error_add_error("Unable to find file %s\n", name);
 		return DSK_ERROR;
 	}
 }
 
-int amsdos_file_remove(amsdos_type *amsdos,
+int amsdos_remove_file(amsdos_type *amsdos,
 		       const char *name,
 		       uint8_t user) {
-        LOG(LOG_DEBUG, "amsdos_file_remove(name=%s, user=%u)",
+        LOG(LOG_DEBUG, "amsdos_remove_file(name=%s, user=%u)",
             name, user);
         amsdos_dir_type dir_entry, *dir_entry_p;
 
@@ -635,8 +635,8 @@ int amsdos_file_remove(amsdos_type *amsdos,
         if (index >= 0) {
                 do {
                         dir_entry.user = AMSDOS_USER_DELETED;
-			amsdos_dir_set(amsdos, &dir_entry, index);
-			dir_entry_p = amsdos_dir_get(amsdos, 
+			amsdos_update_dir(amsdos, &dir_entry, index);
+			dir_entry_p = amsdos_get_dir(amsdos, 
 						     &dir_entry, 
 						     ++index);
                 } while (dir_entry_p &&
@@ -644,29 +644,29 @@ int amsdos_file_remove(amsdos_type *amsdos,
                          dir_entry_p->user == user);
 		return DSK_OK;
         } else {
-                error_add("Unable to find file %s\n", name);
+                error_add_error("Unable to find file %s\n", name);
                 return DSK_ERROR;
         }
 }
 
 
-bool amsdos_file_exists(amsdos_type *amsdos, const char *name, uint8_t user) {
+bool amsdos_exists_file(amsdos_type *amsdos, const char *name, uint8_t user) {
 	amsdos_dir_type dir_entry;
 	return get_dir_entry_for_file(amsdos, name, user, &dir_entry) >= 0;
 }
 
 
-int amsdos_file_add(amsdos_type *amsdos, const char *source_file, 
+int amsdos_add_file(amsdos_type *amsdos, const char *source_file, 
 		    const char *target_name,
 		    uint8_t user) {
 
-	LOG(LOG_DEBUG, "amsdos_file_add(source=%s, target=%s, user=%u)",
+	LOG(LOG_DEBUG, "amsdos_add_file(source=%s, target=%s, user=%u)",
 	    source_file, target_name, user);
 
 	off_t size;
 	if ((size = add_file_checks(amsdos, source_file, 
 				    target_name, user)) < DSK_OK) {
-		LOG(LOG_ERROR, "In file checks %s", error_get());
+		LOG(LOG_ERROR, "In file checks %s", error_get_error_message());
 		return DSK_ERROR;
 	}
 
@@ -677,18 +677,18 @@ int amsdos_file_add(amsdos_type *amsdos, const char *source_file,
 	return retcode;
 }
 
-int amsdos_binary_file_add(amsdos_type *amsdos, const char *source_file,
+int amsdos_add_binary_file(amsdos_type *amsdos, const char *source_file,
 			   const char *target_name, uint8_t user, 
 			   uint16_t load_address, uint16_t entry_address) {
 
-	LOG(LOG_DEBUG, "amsdos_binary_file_add(source=%s, target=%s, user=%u, load_address=0x%04x, entry_address=0x%04x)",
+	LOG(LOG_DEBUG, "amsdos_add_binary_file(source=%s, target=%s, user=%u, load_address=0x%04x, entry_address=0x%04x)",
 	    source_file, target_name, user,
 	    load_address, entry_address);
-
+	
 	off_t size;
 	if ((size = add_file_checks(amsdos, source_file, 
 				    target_name, user)) < DSK_OK) {
-		LOG(LOG_ERROR, "In file checks %s",error_get(amsdos));
+		LOG(LOG_ERROR, "In file checks %s",error_get_error_message());
 		return DSK_ERROR;
 	}
 
@@ -700,7 +700,7 @@ int amsdos_binary_file_add(amsdos_type *amsdos, const char *source_file,
 	amsdos_header_type header;
 	size_t nread = fread(&header, sizeof(amsdos_header_type), 1, stream);
 	if (nread < 1) {
-		error_add("Unable to read header from file %s. %s",
+		error_add_error("Unable to read header from file %s. %s",
 			  source_file, strerror(errno));
 		fclose(stream);
 		return DSK_ERROR;
@@ -719,16 +719,16 @@ int amsdos_binary_file_add(amsdos_type *amsdos, const char *source_file,
 	return retcode;
 }
 
-int amsdos_ascii_file_add(amsdos_type *amsdos, const char *source_file, 
+int amsdos_add_ascii_file(amsdos_type *amsdos, const char *source_file, 
 			  const char *target_name, uint8_t user) {
 
-	LOG(LOG_DEBUG, "amsdos_ascii_file_add(source=%s, target=%s, user=%u)",
+	LOG(LOG_DEBUG, "amsdos_add_ascii_file(source=%s, target=%s, user=%u)",
 	    source_file, target_name, user);
 
 	off_t size;
 	if ((size = add_file_checks(amsdos, source_file, 
 				    target_name, user)) < DSK_OK) {
-		LOG(LOG_ERROR, "In file checks %s", error_get());
+		LOG(LOG_ERROR, "In file checks %s", error_get_error_message());
 		return DSK_ERROR;
 	}
 
@@ -739,7 +739,7 @@ int amsdos_ascii_file_add(amsdos_type *amsdos, const char *source_file,
 	amsdos_header_type header;
 	size_t nread = fread(&header, sizeof(amsdos_header_type), 1, stream);
 	if (nread < 1) {
-		error_add("Unable to read header from file %s. %s",
+		error_add_error("Unable to read header from file %s. %s",
 			  source_file, strerror(errno));
 		fclose(stream);
 		return DSK_ERROR;

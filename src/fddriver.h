@@ -43,18 +43,18 @@ typedef struct {
 
 fddriver_type *fddriver_new(const char *device);
 void fddriver_delete(fddriver_type *fddriver);
-void fddriver_retries_set(fddriver_type *fddriver, uint8_t retries);
+void fddriver_set_retries(fddriver_type *fddriver, uint8_t retries);
 int fddriver_reset(fddriver_type *fddriver);
 int fddriver_init(fddriver_type *fddriver);
 int fddriver_format_track(fddriver_type *fddriver, track_header_type *track);
-int fddriver_sector_write(fddriver_type *fddriver, track_header_type *track,
+int fddriver_write_sector(fddriver_type *fddriver, track_header_type *track,
 			  uint8_t sector, uint8_t *data);
-int fddriver_sector_read(fddriver_type *fddriver, 
+int fddriver_read_sector(fddriver_type *fddriver, 
 			 track_header_type *track,
 			 uint8_t sector,
 			 uint8_t *buffer);
 int fddriver_recalibrate(fddriver_type *fddriver);
-int fddriver_sectorids_read(fddriver_type *fddriver, track_header_type *track);
-int fddriver_track_seek(fddriver_type *fddriver, uint8_t track);
+int fddriver_read_sectorids(fddriver_type *fddriver, track_header_type *track);
+int fddriver_seek_track(fddriver_type *fddriver, uint8_t track);
 
 #endif //FDDRIVER_H

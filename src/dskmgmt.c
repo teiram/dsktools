@@ -69,7 +69,7 @@ int get_info(const char *filename) {
 	amsdos_type *amsdos = amsdos_new(filename);
 	if (amsdos) {
 		amsdos_info_type info;
-		amsdos_info_get(amsdos, &info);
+		amsdos_get_info(amsdos, &info);
 		printf("DSK type\t: %s\n", info.dsk_info.type == DSK ? 
 		       "DSK" : "EDSK");
 		printf("Disk id\t\t: %s\n", info.dsk_info.magic);
@@ -95,25 +95,25 @@ int list_dsk(const char *filename) {
 		amsdos_dir_type dir_entries[AMSDOS_NUM_DIRENT];
 		char buffer[13];
 		for (int i = 0; i < AMSDOS_NUM_DIRENT; i++) {
-			amsdos_dir_get(amsdos, &dir_entries[i], i);
+			amsdos_get_dir(amsdos, &dir_entries[i], i);
 			LOG(LOG_DEBUG, 
 			    "Entry for user %d, name %s, extent %d, records %u", 
 			    dir_entries[i].user,
-			    amsdos_dir_name_get(&dir_entries[i], buffer),
+			    amsdos_get_dir_name(&dir_entries[i], buffer),
 			    dir_entries[i].extent_low,
 			    dir_entries[i].record_count);
 		}
 		for (int i = 0; i < AMSDOS_NUM_DIRENT; i++) {
 			amsdos_dir_type *dir_entry = &dir_entries[i];
 			
-			if (!amsdos_dir_deleted(dir_entry) && 
+			if (!amsdos_is_dir_deleted(dir_entry) && 
 			    dir_entry->extent_low == 0 &&
 			    dir_entry->record_count > 0) {
 
 				fprintf(stderr, "%s (user %d) %6d bytes\n", 
-					amsdos_dir_name_get(dir_entry, buffer),
+					amsdos_get_dir_name(dir_entry, buffer),
 					dir_entry->user,
-					amsdos_dir_size_get(dir_entries, i));
+					amsdos_get_dir_size(dir_entries, i));
 			}
 		}
 		amsdos_delete(amsdos);
@@ -127,10 +127,10 @@ int export_dsk(const char *dsk_filename, const char *amsdos_filename,
 	       const char *dst_filename, uint8_t user) {
 	amsdos_type *amsdos = amsdos_new(dsk_filename);
 	if (amsdos) {
-		int status = amsdos_file_get(amsdos, amsdos_filename, user,
+		int status = amsdos_get_file(amsdos, amsdos_filename, user,
 					     dst_filename ? dst_filename : amsdos_filename);
 		if (status != DSK_OK) {
-			fprintf(stderr, "Failure: %s\n", error_get());
+			fprintf(stderr, "Failure: %s\n", error_get_error_message());
 		} 
 		amsdos_delete(amsdos);
 		return status;
@@ -143,9 +143,9 @@ int export_dsk(const char *dsk_filename, const char *amsdos_filename,
 int write_dsk(const char *dsk_filename, const char *device) {
 	dsk_type *dsk = dsk_new(dsk_filename);
 	if (dsk) {
-		int status = dsk_disk_write(dsk, device);
+		int status = dsk_write_to_disk(dsk, device);
 		if (status != DSK_OK) {
-			fprintf(stderr, "Failure: %s\n", error_get());
+			fprintf(stderr, "Failure: %s\n", error_get_error_message());
 		}
 		dsk_delete(dsk);
 		return status;
@@ -157,12 +157,12 @@ int write_dsk(const char *dsk_filename, const char *device) {
 
 int read_dsk(const char *device, uint8_t tracks, uint8_t sides, 
 	     const char *destination) {
-	dsk_type *dsk = dsk_new_from_scratch(DSK, tracks, sides, 0x1200);
-	int status = dsk_disk_read(dsk, device);
+	dsk_type *dsk = dsk_new_empty(DSK, tracks, sides, 0x1200);
+	int status = dsk_read_from_disk(dsk, device);
 	if (status == DSK_OK) {
-		dsk_image_dump(dsk, destination);
+		dsk_save_image(dsk, destination);
 	} else {
-		fprintf(stderr, "Failure: %s\n", error_get());
+		fprintf(stderr, "Failure: %s\n", error_get_error_message());
 	}
 	dsk_delete(dsk);
 	return status;
@@ -171,15 +171,15 @@ int read_dsk(const char *device, uint8_t tracks, uint8_t sides,
 int new_dsk(const char *destination, uint8_t tracks, uint8_t sides, 
 	    uint8_t sectors_per_track, uint8_t sector_size,
 	    uint16_t tracklen, amsdos_disk_type type) {
-	amsdos_type *amsdos = amsdos_new_from_scratch(tracks, sides, 
-						      sectors_per_track,
-						      sector_size,
-						      tracklen,
-						      type);
-	int status = dsk_image_dump(amsdos->dsk, destination);
+	amsdos_type *amsdos = amsdos_new_empty(tracks, sides, 
+					       sectors_per_track,
+					       sector_size,
+					       tracklen,
+					       type);
+	int status = dsk_save_image(amsdos->dsk, destination);
 	amsdos_delete(amsdos);
 	if (status != DSK_OK) {
-		fprintf(stderr, "Failure: %s", error_get());
+		fprintf(stderr, "Failure: %s", error_get_error_message());
 	}
 	return status;
 }
@@ -188,12 +188,12 @@ int add_to_dsk(const char *dsk_filename, const char *source_file,
 	       const char *dst_filename, uint8_t user) {
 	amsdos_type *amsdos = amsdos_new(dsk_filename);
 	if (amsdos) {
-		int status = amsdos_file_add(amsdos, source_file,
+		int status = amsdos_add_file(amsdos, source_file,
 					     source_file, user);
 		if (status != DSK_OK) {
-			fprintf(stderr, "Failure: %s\n", error_get());
+			fprintf(stderr, "Failure: %s\n", error_get_error_message());
 		} else {
-			dsk_image_dump(amsdos->dsk, dst_filename);
+			dsk_save_image(amsdos->dsk, dst_filename);
 		}
 		amsdos_delete(amsdos);
 		return status;
@@ -207,11 +207,11 @@ int remove_from_dsk(const char *dsk_filename, const char *amsdos_filename,
                     const char *dst_filename, uint8_t user) {
         amsdos_type *amsdos = amsdos_new(dsk_filename);
         if (amsdos) {
-                int status = amsdos_file_remove(amsdos, amsdos_filename, user);
+                int status = amsdos_remove_file(amsdos, amsdos_filename, user);
                 if (status != DSK_OK) {
-                        fprintf(stderr, "Failure: %s\n", error_get());
+                        fprintf(stderr, "Failure: %s\n", error_get_error_message());
                 } else {
-			dsk_image_dump(amsdos->dsk, dst_filename);
+			dsk_save_image(amsdos->dsk, dst_filename);
 		}
                 return status;
         } else {

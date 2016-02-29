@@ -33,7 +33,7 @@ static void show_error_dialog(app_model_type *model, const char *message) {
 	gtk_message_dialog_set_markup(GTK_MESSAGE_DIALOG(dialog),
 				      message);
 	gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog),
-						 error_get());
+						 error_get_error_message());
 	error_reset();
 	gtk_dialog_run(GTK_DIALOG(dialog));
 	gtk_widget_hide(dialog);
@@ -92,7 +92,7 @@ static void update_disk_info(app_model_type *model) {
 	amsdos_type *amsdos = app_model_get_amsdos(model);
 	if (amsdos) {
 		amsdos_info_type info;
-		amsdos_info_get(amsdos, &info);
+		amsdos_get_info(amsdos, &info);
 		update_disk_info_field(model, "format_info", info.dsk_info.type == DSK ? "DSK" : "EDSK" );
 		update_disk_info_field(model, "header_info", info.dsk_info.magic);
 		update_disk_info_field(model, "creator_info", info.dsk_info.creator);
@@ -154,20 +154,19 @@ static void update_directory_info(app_model_type *model) {
 		char name_buffer[9];
 		char ext_buffer[4];
 		for (int i = 0; i < AMSDOS_NUM_DIRENT; i++) {
-			amsdos_dir_get(amsdos, &dir_entries[i], i);
+			amsdos_get_dir(amsdos, &dir_entries[i], i);
 		}
 		for (int i = 0; i < AMSDOS_NUM_DIRENT; i++) {
 			amsdos_dir_type *dir_entry = &dir_entries[i];
-			if (!amsdos_dir_deleted(dir_entry) &&
+			if (!amsdos_is_dir_deleted(dir_entry) &&
 			    dir_entry->extent_low == 0 &&
 			    dir_entry->record_count > 0 &&
 			    dir_entry->user == selected_user) {
-				amsdos_dir_get(amsdos, &dir_entries[i], i);
 				gtk_list_store_append(file_store, &iter);
 				gtk_list_store_set(file_store, &iter,
-						   0, amsdos_dir_basename_get(dir_entry, name_buffer),
-						   1, amsdos_dir_extension_get(dir_entry, ext_buffer),
-						   2, amsdos_dir_size_get(dir_entries, i),
+						   0, amsdos_get_dir_basename(dir_entry, name_buffer),
+						   1, amsdos_get_dir_extension(dir_entry, ext_buffer),
+						   2, amsdos_get_dir_size(dir_entries, i),
 						   -1);
 			}
 		}
@@ -252,7 +251,7 @@ cb_dsk_save(GtkToolButton *button, app_model_type *model) {
 		if (filename) {
 			if (is_regular_file(filename) &&
 			    show_confirm_dialog(model, "Confirm overwriting of %s file", filename)) {
-				if (dsk_image_dump(amsdos->dsk, filename) != DSK_OK) {
+				if (dsk_save_image(amsdos->dsk, filename) != DSK_OK) {
 					show_error_dialog(model, "Error saving image");
 				} else {
 					app_model_set_modified(model, false);
@@ -299,7 +298,7 @@ cb_dsk_add_file(GtkToolButton *button, app_model_type *model) {
 			gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
 		if (filename) {
 			LOG(LOG_DEBUG, "Chosen filename %s", filename);
-			if (amsdos_file_add(amsdos, filename, 
+			if (amsdos_add_file(amsdos, filename, 
 					    filename,
 					    get_selected_user(model)) != DSK_OK) {
 				show_error_dialog(model, "Adding file to volume");
@@ -332,7 +331,7 @@ static void remove_selected_file(GtkTreeModel *tree_model,
 	uint8_t user = get_selected_user(model);
 	LOG(LOG_DEBUG, "Removing file %s.%s, user %u", name, extension, user);
 	amsdos_type *amsdos = app_model_get_amsdos(model);
-	if (amsdos_file_remove(amsdos, amsdos_name, user) != DSK_OK) {
+	if (amsdos_remove_file(amsdos, amsdos_name, user) != DSK_OK) {
 		show_error_dialog(model, "Removing file from volume");
 	} else {
 		app_model_set_modified(model, true);

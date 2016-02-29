@@ -69,6 +69,17 @@ typedef struct {
 
 typedef struct {
 	uint8_t user;
+	char name[AMSDOS_NAME_LEN + 1];
+	char extension[AMSDOS_EXT_LEN + 1];
+	uint8_t flags;
+	uint32_t size;
+	uint8_t amsdos_type;
+	uint16_t load_address;
+	uint16_t exec_address;
+} amsdos_file_type;
+
+typedef struct {
+	uint8_t user;
 	char name[AMSDOS_NAME_LEN];
 	char extension[AMSDOS_EXT_LEN];
 	uint8_t unused0[4];
@@ -99,39 +110,39 @@ typedef struct {
 } amsdos_info_type;
 
 amsdos_type *amsdos_new(const char *filename);
-amsdos_type *amsdos_new_from_scratch(uint8_t tracks, uint8_t sides, 
-				     uint8_t sectors_per_track,
-				     uint8_t sector_size,
-				     uint16_t tracklen, 
-				     amsdos_disk_type type);
+amsdos_type *amsdos_new_empty(uint8_t tracks, uint8_t sides, 
+			      uint8_t sectors_per_track,
+			      uint8_t sector_size,
+			      uint16_t tracklen, 
+			      amsdos_disk_type type);
 void amsdos_delete(amsdos_type *amsdos);
 
-amsdos_info_type *amsdos_info_get(amsdos_type *amsdos, amsdos_info_type *info);
+amsdos_info_type *amsdos_get_info(amsdos_type *amsdos, amsdos_info_type *info);
 
-amsdos_dir_type *amsdos_dir_get(amsdos_type *amsdos,
+amsdos_dir_type *amsdos_get_dir(amsdos_type *amsdos,
 				amsdos_dir_type *dir_entry, 
 				int index);
-void amsdos_dir_set(amsdos_type *amsdos,
-		    amsdos_dir_type *dir_entry,
-		    int index);
-char *amsdos_dir_name_get(amsdos_dir_type *dir, char *buffer);
-char *amsdos_dir_basename_get(amsdos_dir_type *dir, char *buffer);
-char *amsdos_dir_extension_get(amsdos_dir_type *dir, char *buffer);
-uint32_t amsdos_dir_size_get(amsdos_dir_type* dir_entries, int index);
-bool amsdos_dir_deleted(amsdos_dir_type *dir_entry);
+void amsdos_update_dir(amsdos_type *amsdos,
+		       amsdos_dir_type *dir_entry,
+		       int index);
+char *amsdos_get_dir_name(amsdos_dir_type *dir, char *buffer);
+char *amsdos_get_dir_basename(amsdos_dir_type *dir, char *buffer);
+char *amsdos_get_dir_extension(amsdos_dir_type *dir, char *buffer);
+uint32_t amsdos_get_dir_size(amsdos_dir_type* dir_entries, int index);
+bool amsdos_is_dir_deleted(amsdos_dir_type *dir_entry);
 
-int amsdos_file_get(amsdos_type *amsdos, const char *name, 
+int amsdos_get_file(amsdos_type *amsdos, const char *name, 
 		    uint8_t user,
 		    const char *destination);
 
-int amsdos_file_add(amsdos_type *amsdos, const char *source_file,
+int amsdos_add_file(amsdos_type *amsdos, const char *source_file,
 		    const char *target_file, uint8_t user);
-int amsdos_ascii_file_add(amsdos_type *amsdos, const char *source_file, 
+int amsdos_add_ascii_file(amsdos_type *amsdos, const char *source_file, 
 			  const char *target_name, uint8_t user);
-int amsdos_binary_file_add(amsdos_type *amsdos, const char *source_file,
+int amsdos_add_binary_file(amsdos_type *amsdos, const char *source_file,
 			   const char *target_name, uint8_t user, 
 			   uint16_t load_address, uint16_t entry_address);
-int amsdos_file_remove(amsdos_type *amsdos, const char *name, uint8_t user);
-bool amsdos_file_exists(amsdos_type *amsdos, const char *name, uint8_t user);
+int amsdos_remove_file(amsdos_type *amsdos, const char *name, uint8_t user);
+bool amsdos_exists_file(amsdos_type *amsdos, const char *name, uint8_t user);
 
 #endif //AMSDOS_H

@@ -43,7 +43,7 @@ typedef struct {
 	uint8_t tracks;
 	uint8_t sides;
 	uint8_t track_size[2];
-	uint8_t track_size_high[204]; /* Only for EDSK */
+	uint8_t track_size_high[204]; /* Only used in EDSK */
 } dsk_header_type;
 
 typedef struct {
@@ -88,29 +88,29 @@ typedef struct {
 } dsk_type;
 
 dsk_type *dsk_new(const char *filename);
-dsk_type *dsk_new_from_scratch(dsk_image_type type, 
-			       uint8_t tracks, 
-			       uint8_t sides,
-			       uint16_t tracklen);
+dsk_type *dsk_new_empty(dsk_image_type type, 
+			uint8_t tracks, 
+			uint8_t sides,
+			uint16_t tracklen);
 void dsk_delete(dsk_type *dsk);
-dsk_info_type *dsk_info_get(dsk_type *dsk, dsk_info_type *info);
-uint32_t dsk_sector_offset_get(dsk_type *dsk, 
+dsk_info_type *dsk_get_info(dsk_type *dsk, dsk_info_type *info);
+uint32_t dsk_get_sector_offset(dsk_type *dsk, 
 			       uint8_t track_id, uint8_t side, 
 			       uint8_t sector_id);
-track_header_type *dsk_track_info_get(dsk_type *dsk,
+track_header_type *dsk_get_track_info(dsk_type *dsk,
 				      uint8_t track,
 				      bool validate);
-void dsk_track_info_init(track_header_type *track, 
+void dsk_init_track_info(track_header_type *track, 
 			 uint8_t track_number, 
 			 uint8_t side_number, 
 			 uint8_t sector_size, 
 			 uint8_t sector_count, 
 			 uint8_t gap3_length);
-int dsk_image_dump(dsk_type *dsk, const char *destination);
-int dsk_sector_write(dsk_type *dsk, const uint8_t *src, uint8_t sector);
-uint32_t dsk_track_size_get(dsk_type *dsk, uint8_t track);
-int dsk_sector_read(dsk_type *dsk, uint8_t *dst, uint8_t sector);
-int dsk_disk_write(dsk_type *dsk, const char *device);
-int dsk_disk_read(dsk_type *dsk, const char *device);
+int dsk_save_image(dsk_type *dsk, const char *destination);
+int dsk_write_sector(dsk_type *dsk, const uint8_t *src, uint8_t sector);
+uint32_t dsk_get_track_size(dsk_type *dsk, uint8_t track);
+int dsk_read_sector(dsk_type *dsk, uint8_t *dst, uint8_t sector);
+int dsk_write_to_disk(dsk_type *dsk, const char *device);
+int dsk_read_from_disk(dsk_type *dsk, const char *device);
 
 #endif //DSK_H

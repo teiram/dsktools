@@ -71,7 +71,7 @@ static bool is_edsk_image(dsk_type *dsk) {
 	return false;
 }
 
-uint32_t dsk_track_size_get(dsk_type *dsk, uint8_t track) {
+uint32_t dsk_get_track_size(dsk_type *dsk, uint8_t track) {
 	if (is_dsk_image(dsk)) {
 		return dsk->dsk_info->track_size[0] +
 			(dsk->dsk_info->track_size[1] << 8);
@@ -86,39 +86,39 @@ uint32_t dsk_track_size_get(dsk_type *dsk, uint8_t track) {
 static uint32_t get_image_size(dsk_type *dsk) {
 	if (is_dsk_image(dsk)) {
 		return dsk->dsk_info->tracks * 
-			dsk_track_size_get(dsk, 0);
+			dsk_get_track_size(dsk, 0);
 	} else if (is_edsk_image(dsk)) {
 		uint32_t size = 0;
 		uint32_t track_count = dsk->dsk_info->tracks * 
 			dsk->dsk_info->sides;
 		for (int i = 0; i < track_count; i++) {
-			size += dsk_track_size_get(dsk, i);
+			size += dsk_get_track_size(dsk, i);
 		}
 		return size;
 	} else {
-		error_add("Getting image size from unsupported image");
+		error_add_error("Getting image size from unsupported image");
 		return 0;
 	}
 }
 
 static uint32_t get_track_offset(dsk_type *dsk, uint8_t track) {
 	if (is_dsk_image(dsk)) {
-		return dsk_track_size_get(dsk, 0) * track;
+		return dsk_get_track_size(dsk, 0) * track;
 	} else if (is_edsk_image(dsk)) {
 		uint32_t offset = 0;
 		for (int i = 0; i < track; i++) {
-			offset += dsk_track_size_get(dsk, i);
+			offset += dsk_get_track_size(dsk, i);
 		}
 		return offset;
 	} else {
-		error_add("Getting track offset from unsupported image");
+		error_add_error("Getting track offset from unsupported image");
 		return 0;
 	}
 }
 
 static uint8_t first_sector_id(dsk_type *dsk) {
 	track_header_type *track0 = 
-		dsk_track_info_get(dsk, 0, true);
+		dsk_get_track_info(dsk, 0, true);
 	uint8_t min = ~0;
 	for (int i = 0; i < track0->sector_count; i++) {
 		if (track0->sector_info[i].sector_id < min) {
@@ -129,13 +129,13 @@ static uint8_t first_sector_id(dsk_type *dsk) {
 	return min;
 }
 
-uint32_t dsk_track_start_sector_get(dsk_type *dsk,
+uint32_t dsk_get_track_start_sector(dsk_type *dsk,
 				    uint8_t track_index) {
 	uint32_t startup_sector = 0;
 
 	for (int i = 0; i < track_index; i++) {
 		track_header_type *track_info = 
-			dsk_track_info_get(dsk, i, true);
+			dsk_get_track_info(dsk, i, true);
 		startup_sector += track_info->sector_count;
 	}
 	return startup_sector;
@@ -145,7 +145,7 @@ static track_header_type *get_sector_track_info(dsk_type *dsk, uint8_t sector) {
 	uint32_t current_sector = 0;
 	for (int i = 0; i < dsk->dsk_info->tracks; i++) {
 		track_header_type *track_info = 
-			dsk_track_info_get(dsk, i, true);
+			dsk_get_track_info(dsk, i, true);
 		current_sector += track_info->sector_count;
 		if (current_sector > sector) {
 			return track_info;
@@ -184,9 +184,9 @@ static int32_t get_sector_offset(dsk_type *dsk,
 	uint8_t sector_id = first_sector_id(dsk);
 	for (uint8_t track = 0; track < dsk->dsk_info->tracks; track++) {
 		track_header_type *track_info = 
-			dsk_track_info_get(dsk, track, true);
+			dsk_get_track_info(dsk, track, true);
 		if (track_base_sector + track_info->sector_count <= sector) {
-			offset += dsk_track_size_get(dsk, track);
+			offset += dsk_get_track_size(dsk, track);
 			track_base_sector += track_info->sector_count;
 		} else {
 			sector_id += sector - track_base_sector;
@@ -199,22 +199,22 @@ static int32_t get_sector_offset(dsk_type *dsk,
 	return offset;
 }
 
-uint32_t dsk_sector_offset_get(dsk_type *dsk, 
+uint32_t dsk_get_sector_offset(dsk_type *dsk, 
 			       uint8_t track_id, uint8_t side, 
 			       uint8_t sector_id) {
-	LOG(LOG_DEBUG, "dsk_sector_offset_get(track=%u, side=%u, sector=%02x)",
+	LOG(LOG_DEBUG, "dsk_get_sector_offset(track=%u, side=%u, sector=%02x)",
 	    track_id, side, sector_id);
 	uint32_t offset = 0;
 	for (int i = 0; i < dsk->dsk_info->tracks; i++) {
 		track_header_type *track = 
-			dsk_track_info_get(dsk, i, true);
+			dsk_get_track_info(dsk, i, true);
 		LOG(LOG_TRACE, "Searching in track %u", track->track_number);
 		if (track->track_number == track_id &&
 		    track->side_number == side) {
 			offset += get_sector_offset_in_track(track, sector_id);
 			break;
 		} else {
-			offset += dsk_track_size_get(dsk, i);
+			offset += dsk_get_track_size(dsk, i);
 		}
 		LOG(LOG_TRACE, " +current offset %04x", offset);
 	}
@@ -226,9 +226,9 @@ static bool is_valid_track_in_offset(dsk_type *dsk, uint32_t offset) {
 	return !strncmp((char*) dsk->image + offset, DSK_TRACK_HEADER, 13);
 }
 
-track_header_type *dsk_track_info_get(dsk_type *dsk, uint8_t track, 
+track_header_type *dsk_get_track_info(dsk_type *dsk, uint8_t track, 
 				      bool validate) {
-	LOG(LOG_DEBUG, "dsk_track_info_get(track=%u)", track);
+	LOG(LOG_DEBUG, "dsk_get_track_info(track=%u)", track);
 	if (dsk && dsk->image) {
 		if (track < dsk->dsk_info->tracks) {
 			if (!dsk->track_info[track]) {
@@ -239,7 +239,7 @@ track_header_type *dsk_track_info_get(dsk_type *dsk, uint8_t track,
 					LOG(LOG_ERROR, 
 					    "Invalid track offset %04x", 
 					    offset);
-					error_add("Invalid track offset %04x", 
+					error_add_error("Invalid track offset %04x", 
 						  offset);
 					return NULL;
 				}
@@ -279,7 +279,7 @@ static void init_dsk_header(dsk_type *dsk, dsk_image_type type,
 	dsk->dsk_info->track_size[1] = (tracklen >> 8) & 0xff;
 }
 
-void dsk_track_info_init(track_header_type *track, 
+void dsk_init_track_info(track_header_type *track, 
 			 uint8_t track_number, 
 			 uint8_t side_number, 
 			 uint8_t sector_size, 
@@ -295,10 +295,10 @@ void dsk_track_info_init(track_header_type *track,
 	track->gap3_length = gap3_length;
 }
 
-dsk_type *dsk_new_from_scratch(dsk_image_type type, 
-			       uint8_t tracks, 
-			       uint8_t sides,
-			       uint16_t tracklen) {
+dsk_type *dsk_new_empty(dsk_image_type type, 
+			uint8_t tracks, 
+			uint8_t sides,
+			uint16_t tracklen) {
 	dsk_type *dsk = calloc(1, sizeof(dsk_type));
 	dsk->dsk_info = (dsk_header_type *)calloc(1, sizeof(dsk_header_type));
 	/* Assume that we are provided with the physical tracklen. 
@@ -360,7 +360,7 @@ static uint32_t get_capacity(dsk_type *dsk) {
 	uint32_t bytes = 0;
 	for (int i = 0; i < dsk->dsk_info->tracks; i++) {
 		track_header_type *track = 
-			dsk_track_info_get(dsk, i, true);
+			dsk_get_track_info(dsk, i, true);
 		bytes += track->sector_count * 
 			(BASE_SECTOR_SIZE << track->sector_size);
 	}
@@ -372,14 +372,14 @@ static uint32_t get_sector_count(dsk_type *dsk) {
 	uint32_t sectors = 0;
 	for (int i = 0; i < dsk->dsk_info->tracks; i++) {
 		track_header_type *track = 
-			dsk_track_info_get(dsk, i, true);
+			dsk_get_track_info(dsk, i, true);
 		sectors += track->sector_count;
 	}
 	LOG(LOG_TRACE, "Total sectors in dsk: %u", sectors);
 	return sectors;
 }
 
-dsk_info_type *dsk_info_get(dsk_type *dsk, dsk_info_type *info) {
+dsk_info_type *dsk_get_info(dsk_type *dsk, dsk_info_type *info) {
 	if (dsk && dsk->dsk_info) {
 		memset(info, 0, sizeof(dsk_info_type));
 		strncpy(info->magic, dsk->dsk_info->magic, 34);
@@ -397,7 +397,7 @@ dsk_info_type *dsk_info_get(dsk_type *dsk, dsk_info_type *info) {
 	}
 }
 
-int dsk_sector_write(dsk_type *dsk, const uint8_t *src, uint8_t sector) {
+int dsk_write_sector(dsk_type *dsk, const uint8_t *src, uint8_t sector) {
 	track_header_type *track = get_sector_track_info(dsk, sector);
 	uint32_t sector_size = 128 << track->sector_size;
 	int32_t offset = get_sector_offset(dsk, sector);
@@ -408,13 +408,13 @@ int dsk_sector_write(dsk_type *dsk, const uint8_t *src, uint8_t sector) {
 		memcpy(dst, src, sector_size);
 		return DSK_OK;
 	} else {
-		error_add("Unable to calculate offset for sector %u",
+		error_add_error("Unable to calculate offset for sector %u",
 			  sector);
 		return DSK_ERROR;
 	}
 }
 
-int dsk_sector_read(dsk_type *dsk, uint8_t *dst, uint8_t sector) {
+int dsk_read_sector(dsk_type *dsk, uint8_t *dst, uint8_t sector) {
 	track_header_type *track = get_sector_track_info(dsk, sector);
 	uint32_t sector_size = 128 << track->sector_size;
 	int32_t offset = get_sector_offset(dsk, sector);
@@ -425,18 +425,18 @@ int dsk_sector_read(dsk_type *dsk, uint8_t *dst, uint8_t sector) {
 		memcpy(dst, src, sector_size);
 		return DSK_OK;
 	} else {
-		error_add("Unable to calculate offset for sector %u",
+		error_add_error("Unable to calculate offset for sector %u",
 			  sector);
 		return DSK_ERROR;
 	}
 }
 
-int dsk_image_dump(dsk_type *dsk, const char *destination) {
+int dsk_save_image(dsk_type *dsk, const char *destination) {
         FILE *fd = fopen(destination, "w");
         if (fd != NULL) {
                 if (fwrite(dsk->dsk_info,
                            sizeof(dsk_header_type), 1, fd) < 1) {
-                        error_add("Writing image to %s. %s",
+                        error_add_error("Writing image to %s. %s",
 				  destination,
 				  strerror(errno));
                         fclose(fd);
@@ -444,7 +444,7 @@ int dsk_image_dump(dsk_type *dsk, const char *destination) {
                 }
                 if (fwrite(dsk->image,
                            get_image_size(dsk), 1, fd) < 1) {
-                        error_add("Writing image to %s. %s",
+                        error_add_error("Writing image to %s. %s",
 				  destination,
 				  strerror(errno));
                         fclose(fd);
@@ -453,18 +453,18 @@ int dsk_image_dump(dsk_type *dsk, const char *destination) {
                 fclose(fd);
                 return DSK_OK;
         } else {
-                error_add("Opening destination file %s. %s",
+                error_add_error("Opening destination file %s. %s",
 			  destination,
 			  strerror(errno));
                 return DSK_ERROR;
         }
 }
 
-int dsk_disk_write(dsk_type *dsk, const char *device) {
+int dsk_write_to_disk(dsk_type *dsk, const char *device) {
 
 	fddriver_type *fddriver = fddriver_new(device);
 	if (fddriver == NULL) {
-		error_add("Unable to instantiate fd driver");
+		error_add_error("Unable to instantiate fd driver");
 		return DSK_ERROR;
 	}
 	
@@ -472,7 +472,7 @@ int dsk_disk_write(dsk_type *dsk, const char *device) {
 	for (int i = 0; i < dsk->dsk_info->tracks; i++) {
 		for (int j = 0; j < sides; j++) {
 			track_header_type *track = 
-				dsk_track_info_get(dsk, (i << (sides - 1)) + j, true);
+				dsk_get_track_info(dsk, (i << (sides - 1)) + j, true);
 			if (fddriver_format_track(fddriver, track) != DSK_OK) {
 				LOG(LOG_ERROR, "Formatting track");
 				fddriver_delete(fddriver);
@@ -486,13 +486,13 @@ int dsk_disk_write(dsk_type *dsk, const char *device) {
 				    track->track_number,
 				    sector_info->sector_id);
 				uint8_t *data = dsk->image + 
-					dsk_sector_offset_get(dsk, i, j, 
+					dsk_get_sector_offset(dsk, i, j, 
 							      sector_info->sector_id);
 							      
-				if (fddriver_sector_write(fddriver, track, k,
+				if (fddriver_write_sector(fddriver, track, k,
 							  data) != DSK_OK) {
 					LOG(LOG_ERROR, "Writing sector to disk");
-					error_add("Writing sector to disk");
+					error_add_error("Writing sector to disk");
 					fddriver_delete(fddriver);
 					return DSK_ERROR;
 				}
@@ -503,26 +503,26 @@ int dsk_disk_write(dsk_type *dsk, const char *device) {
 	return DSK_OK;
 }
 
-int dsk_disk_read(dsk_type *dsk, const char *device) {
+int dsk_read_from_disk(dsk_type *dsk, const char *device) {
 
 	fddriver_type *fddriver = fddriver_new(device);
 	if (fddriver == NULL) {
-		error_add("Unable to instantiate fd driver");
+		error_add_error("Unable to instantiate fd driver");
 		return DSK_ERROR;
 	}
 	uint8_t sides = dsk->dsk_info->sides;
 	for (int i = 0; i < dsk->dsk_info->tracks; i++) {
 		for (int j = 0; j < sides; j++) {
 			track_header_type *track = 
-				dsk_track_info_get(dsk, (i << (sides - 1)) + j,
+				dsk_get_track_info(dsk, (i << (sides - 1)) + j,
 						   false);
 			/* TODO: Avoid fixed values here */
-			dsk_track_info_init(track, i, j, 2, 0, 82);
-			if (fddriver_track_seek(fddriver, i) != DSK_OK) {
+			dsk_init_track_info(track, i, j, 2, 0, 82);
+			if (fddriver_seek_track(fddriver, i) != DSK_OK) {
 				fddriver_delete(fddriver);
 				return DSK_ERROR;
 			}
-			if (fddriver_sectorids_read(fddriver, 
+			if (fddriver_read_sectorids(fddriver, 
 						    track) != DSK_OK) {
 				fddriver_delete(fddriver);
 				return DSK_ERROR;
@@ -536,9 +536,9 @@ int dsk_disk_read(dsk_type *dsk, const char *device) {
 				    track->track_number,
 				    sector_info->sector_id);
 				uint8_t *data = dsk->image + 
-					dsk_sector_offset_get(dsk, i, j, 
+					dsk_get_sector_offset(dsk, i, j, 
 							      sector_info->sector_id);				
-				if (fddriver_sector_read(fddriver, track, 
+				if (fddriver_read_sector(fddriver, track, 
 							 k, data) != DSK_OK) {
 					fddriver_delete(fddriver);
 					return DSK_ERROR;

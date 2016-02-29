@@ -27,7 +27,7 @@ fddriver_type *fddriver_new(const char *device) {
 	return NULL;
 }
 
-void fddriver_retries_set(fddriver_type *fddriver, uint8_t retries) {
+void fddriver_set_retries(fddriver_type *fddriver, uint8_t retries) {
 	LOG(LOG_ERROR, "Unsupported platform");
 }
 
@@ -49,13 +49,13 @@ int fddriver_format_track(fddriver_type *fddriver, track_header_type *track) {
 	return DSK_ERROR;
 }
 
-int fddriver_sector_write(fddriver_type *fddriver, track_header_type *track,
+int fddriver_write_sector(fddriver_type *fddriver, track_header_type *track,
 			  uint8_t sector, uint8_t *data) {
 	LOG(LOG_ERROR, "Unsupported platform");
 	return DSK_ERROR;
 }
 
-int fddriver_sector_read(fddriver_type *fddriver, 
+int fddriver_read_sector(fddriver_type *fddriver, 
 			 track_header_type *track,
 			 uint8_t sector,
 			 uint8_t *buffer) {
@@ -68,12 +68,12 @@ int fddriver_recalibrate(fddriver_type *fddriver) {
 	return DSK_ERROR;
 }
 
-int fddriver_track_seek(fddriver_type *fddriver, uint8_t track) {
+int fddriver_seek_track(fddriver_type *fddriver, uint8_t track) {
 	LOG(LOG_ERROR, "Unsupported platform");
 	return DSK_ERROR;
 }
 	
-int fddriver_sectorids_read(fddriver_type *fddriver, 
+int fddriver_read_sectorids(fddriver_type *fddriver, 
 			    track_header_type *track) {
 	LOG(LOG_ERROR, "Unsupported platform");
 	return DSK_ERROR;

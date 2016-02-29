@@ -37,9 +37,9 @@ typedef struct {
 	uint32_t current_output_size;
 } error_stack_type;
 
-void error_add(const char *fmt, ...);
+void error_add_error(const char *fmt, ...);
 bool error_has_error();
 void error_reset();
-const char *error_get();
+const char *error_get_error_message();
 
 #endif //ERROR_H
