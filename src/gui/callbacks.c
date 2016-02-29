@@ -1,4 +1,7 @@
 #include <gtk/gtk.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include "app_model.h"
 #include "../log.h"
 #include "../amsdos.h"
@@ -12,6 +15,7 @@ static void show_error_dialog(app_model_type *model, const char *message) {
 				      message);
 	gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog),
 						 error_get());
+	error_reset();
 	gtk_dialog_run(GTK_DIALOG(dialog));
 	gtk_widget_hide(dialog);
 }
@@ -57,12 +61,12 @@ static void update_disk_info(app_model_type *model) {
 		update_disk_info_field(model, "header_info", info.dsk_info.magic);
 		update_disk_info_field(model, "creator_info", info.dsk_info.creator);
 		update_disk_info_field(model, "type_info", AMSDOS_DISK_STR(info.type));
-		update_disk_info_field(model, "tracks_info", "%4d", info.dsk_info.tracks);
-		update_disk_info_field(model, "sides_info", "%4d", info.dsk_info.sides);
-		update_disk_info_field(model, "sectors_info", "%4d", info.dsk_info.sectors);
+		update_disk_info_field(model, "tracks_info", "%d", info.dsk_info.tracks);
+		update_disk_info_field(model, "sides_info", "%d", info.dsk_info.sides);
+		update_disk_info_field(model, "sectors_info", "%d", info.dsk_info.sectors);
 		update_disk_info_field(model, "first_sector_info", "%02X", info.dsk_info.first_sector_id);
-		update_disk_info_field(model, "size_info", "%6d", info.dsk_info.capacity);
-		update_disk_info_field(model, "used_info", "%6d", info.used);
+		update_disk_info_field(model, "size_info", "%d", info.dsk_info.capacity);
+		update_disk_info_field(model, "used_info", "%d", info.used);
 
 	}
 }
@@ -108,31 +112,87 @@ static void update_directory_info(app_model_type *model) {
 		}
 	}
 }
-					   
+
+static bool is_filename_valid(gchar *filename) {
+	struct stat buf;
+	if (stat(filename, &buf)) {
+		LOG(LOG_ERROR, "Unable to stat file %s", filename);
+		return false;
+	} else {
+		return S_ISREG(buf.st_mode);
+	}
+}
+
+
+G_MODULE_EXPORT void
+cb_selection_changed(GtkFileChooser *chooser, app_model_type *model) {
+	LOG(LOG_DEBUG, "cb_selection_changed(model=%08x)", model);
+	GtkWidget *button = 
+		GTK_WIDGET(gtk_builder_get_object(app_model_get_builder(model),
+						  "dsk_filechooser_open"));
+	gboolean enable = FALSE;
+	if (button) {
+		gchar *filename = gtk_file_chooser_get_filename(chooser);
+		if (filename && is_filename_valid(filename)) {
+			enable = TRUE;
+		}
+		g_free(filename);
+		gtk_widget_set_sensitive(button, enable);
+	} else {
+		LOG(LOG_WARN, "Unable to get open button dialog");
+	}
+}
 
 G_MODULE_EXPORT void
 cb_change_user(GtkSpinButton *spinbutton, app_model_type *model) {
-	LOG(LOG_TRACE, "cb_dsk_open(model=%08x)", model);
+	LOG(LOG_DEBUG, "cb_dsk_open(model=%08x)", model);
 	update_directory_info(model);
 }			
 		
 G_MODULE_EXPORT void 
 cb_dsk_open(GtkToolButton *button, app_model_type *model) {
-	LOG(LOG_TRACE, "cb_dsk_open(model=%08x)", model);
+	LOG(LOG_DEBUG, "cb_dsk_open(model=%08x)", model);
 	GtkWidget *dialog = 
 		GTK_WIDGET(gtk_builder_get_object(app_model_get_builder(model),
 						  "dsk_filechooser"));
 	gint res = gtk_dialog_run(GTK_DIALOG(dialog));
 	gtk_widget_hide(dialog);
 	if (res == 1) {
-		char *filename = 
+		gchar *filename = 
 			gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
-		LOG(LOG_DEBUG, "Chosen filename %s", filename);
-		if (open_amsdos(filename, model)) {
-			show_error_dialog(model, "Error opening AMSDOS file");
-		} else {
-			update_disk_info(model);
-			update_directory_info(model);
+		if (filename) {
+			LOG(LOG_DEBUG, "Chosen filename %s", filename);
+			if (open_amsdos(filename, model)) {
+				show_error_dialog(model, "Error opening AMSDOS file");
+			} else {
+				update_disk_info(model);
+				update_directory_info(model);
+			}
+			g_free(filename);
 		}
 	}   
+}
+
+G_MODULE_EXPORT void
+cb_dsk_save(GtkToolButton *button, app_model_type *model) {
+	LOG(LOG_DEBUG, "cb_dsk_save(model=%08x)", model);
+	show_error_dialog(model, "Still not implemented");
+}
+
+G_MODULE_EXPORT void
+cb_dsk_new(GtkToolButton *button, app_model_type *model) {
+	LOG(LOG_DEBUG, "cb_dsk_new(model=%08x)", model);
+	show_error_dialog(model, "Still not implemented");
+}
+
+G_MODULE_EXPORT void
+cb_dsk_read(GtkToolButton *button, app_model_type *model) {
+	LOG(LOG_DEBUG, "cb_dsk_read(model=%08x)", model);
+	show_error_dialog(model, "Still not implemented");
+}
+
+G_MODULE_EXPORT void
+cb_dsk_write(GtkToolButton *button, app_model_type *model) {
+	LOG(LOG_DEBUG, "cb_dsk_write(model=%08x)", model);
+	show_error_dialog(model, "Still not implemented");
 }

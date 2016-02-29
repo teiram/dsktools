@@ -7,6 +7,8 @@
     <property name="title" translatable="yes">Choose file to open</property>
     <property name="modal">True</property>
     <property name="type_hint">dialog</property>
+    <property name="create_folders">False</property>
+    <signal name="selection-changed" handler="cb_selection_changed" swapped="no"/>
     <child internal-child="vbox">
       <object class="GtkBox" id="filechooserdialog-vbox1">
         <property name="can_focus">False</property>
@@ -33,10 +35,11 @@
               </packing>
             </child>
             <child>
-              <object class="GtkButton" id="button2">
+              <object class="GtkButton" id="dsk_filechooser_open">
                 <property name="label">gtk-open</property>
                 <property name="use_action_appearance">False</property>
                 <property name="visible">True</property>
+                <property name="sensitive">False</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
                 <property name="use_action_appearance">False</property>
@@ -63,7 +66,7 @@
     </child>
     <action-widgets>
       <action-widget response="0">button1</action-widget>
-      <action-widget response="1">button2</action-widget>
+      <action-widget response="1">dsk_filechooser_open</action-widget>
     </action-widgets>
   </object>
   <object class="GtkMessageDialog" id="error_dialog">
@@ -161,6 +164,7 @@
                         <property name="can_focus">False</property>
                         <property name="use_underline">True</property>
                         <property name="use_stock">True</property>
+                        <signal name="activate" handler="cb_dsk_new" swapped="no"/>
                       </object>
                     </child>
                     <child>
@@ -171,6 +175,7 @@
                         <property name="can_focus">False</property>
                         <property name="use_underline">True</property>
                         <property name="use_stock">True</property>
+                        <signal name="activate" handler="cb_dsk_open" swapped="no"/>
                       </object>
                     </child>
                     <child>
@@ -181,6 +186,7 @@
                         <property name="can_focus">False</property>
                         <property name="use_underline">True</property>
                         <property name="use_stock">True</property>
+                        <signal name="activate" handler="cb_dsk_save" swapped="no"/>
                       </object>
                     </child>
                     <child>
@@ -325,6 +331,7 @@
                 <property name="label" translatable="yes">New</property>
                 <property name="use_underline">True</property>
                 <property name="stock_id">gtk-new</property>
+                <signal name="clicked" handler="cb_dsk_new" swapped="no"/>
               </object>
               <packing>
                 <property name="expand">False</property>
@@ -356,6 +363,7 @@
                 <property name="label" translatable="yes">Read floppy</property>
                 <property name="use_underline">True</property>
                 <property name="stock_id">gtk-media-record</property>
+                <signal name="clicked" handler="cb_dsk_write" swapped="no"/>
               </object>
               <packing>
                 <property name="expand">False</property>
@@ -371,6 +379,7 @@
                 <property name="label" translatable="yes">Write floppy</property>
                 <property name="use_underline">True</property>
                 <property name="stock_id">gtk-media-play</property>
+                <signal name="clicked" handler="cb_dsk_read" swapped="no"/>
               </object>
               <packing>
                 <property name="expand">False</property>
@@ -386,6 +395,7 @@
                 <property name="label" translatable="yes">Save</property>
                 <property name="use_underline">True</property>
                 <property name="stock_id">gtk-save</property>
+                <signal name="clicked" handler="cb_dsk_save" swapped="no"/>
               </object>
               <packing>
                 <property name="expand">False</property>
@@ -477,8 +487,12 @@
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
                             <property name="model">liststore_files</property>
+                            <property name="reorderable">True</property>
+                            <property name="enable_grid_lines">horizontal</property>
                             <child internal-child="selection">
-                              <object class="GtkTreeSelection" id="treeview-selection1"/>
+                              <object class="GtkTreeSelection" id="treeview-selection1">
+                                <property name="mode">multiple</property>
+                              </object>
                             </child>
                             <child>
                               <object class="GtkTreeViewColumn" id="treeviewcolumn1">

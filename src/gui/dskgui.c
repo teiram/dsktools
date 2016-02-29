@@ -29,13 +29,6 @@ int main(int argc, char **argv) {
 	app_model_set_builder(model, builder);
 
 	gtk_list_store_clear(file_store);
-	GtkTreeIter iter;
-	gtk_list_store_append(file_store, &iter);
-	gtk_list_store_set(file_store, &iter,
-			   0, "GALAXIAN",
-			   1, "BAS",
-			   2, 23433,
-			   -1);
 	  
 	/* Connect signals */
 	gtk_builder_connect_signals(builder, model);
