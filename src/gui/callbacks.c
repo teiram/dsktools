@@ -78,6 +78,31 @@ static uint8_t get_selected_user(app_model_type *model) {
 	return (uint8_t) gtk_spin_button_get_value_as_int(spin);
 }
 
+static void widget_set_sensitive(app_model_type *model, const char *name,
+				 gboolean value) {
+	GtkBuilder *builder = GTK_BUILDER(app_model_get_builder(model));
+	if (builder) {
+		GtkWidget *widget = 
+			GTK_WIDGET(gtk_builder_get_object(builder, name));
+		if (widget) {
+			gtk_widget_set_sensitive(widget, value);
+		} else {
+			LOG(LOG_ERROR, "Unable to find widget %s", name);
+		}
+	} else {
+		LOG(LOG_ERROR, "No builder in model");
+	}
+}
+
+static void update_toolbar_status(app_model_type *model) {
+	gboolean enable = app_model_get_amsdos(model) ? TRUE : FALSE;
+	widget_set_sensitive(model, "write_button", enable);
+	widget_set_sensitive(model, "add_button", enable);
+
+	widget_set_sensitive(model, "save_button", 
+			     app_model_get_modified(model) ? TRUE: FALSE);
+}
+
 static void update_directory_info(app_model_type *model) {
 	amsdos_type *amsdos = app_model_get_amsdos(model);
 	if (amsdos) {
@@ -165,10 +190,11 @@ cb_dsk_open(GtkToolButton *button, app_model_type *model) {
 			if (open_amsdos(filename, model)) {
 				show_error_dialog(model, "Error opening AMSDOS file");
 			} else {
+				app_model_set_filename(model, filename);
 				update_disk_info(model);
 				update_directory_info(model);
+				update_toolbar_status(model);
 			}
-			g_free(filename);
 		}
 	}   
 }
@@ -176,7 +202,22 @@ cb_dsk_open(GtkToolButton *button, app_model_type *model) {
 G_MODULE_EXPORT void
 cb_dsk_save(GtkToolButton *button, app_model_type *model) {
 	LOG(LOG_DEBUG, "cb_dsk_save(model=%08x)", model);
-	show_error_dialog(model, "Still not implemented");
+	amsdos_type *amsdos = app_model_get_amsdos(model);
+	if (amsdos) {
+		gchar *filename = app_model_get_filename(model);
+		if (filename) {
+			if (dsk_image_dump(amsdos->dsk, filename) != DSK_OK) {
+				show_error_dialog(model, "Error saving image");
+			} else {
+				app_model_set_modified(model, false);
+				update_toolbar_status(model);
+			}
+		} else {
+			LOG(LOG_WARN, "No filename defined");
+		}
+	} else {
+		LOG(LOG_ERROR, "No amsdos object created");
+	}
 }
 
 G_MODULE_EXPORT void
@@ -195,4 +236,81 @@ G_MODULE_EXPORT void
 cb_dsk_write(GtkToolButton *button, app_model_type *model) {
 	LOG(LOG_DEBUG, "cb_dsk_write(model=%08x)", model);
 	show_error_dialog(model, "Still not implemented");
+}
+
+G_MODULE_EXPORT void
+cb_dsk_add_file(GtkToolButton *button, app_model_type *model) {
+	LOG(LOG_DEBUG, "cb_dsk_add_file(model=%08x)", model);
+	GtkWidget *dialog = 
+		GTK_WIDGET(gtk_builder_get_object(app_model_get_builder(model),
+						  "dsk_filechooser"));
+	gint res = gtk_dialog_run(GTK_DIALOG(dialog));
+	gtk_widget_hide(dialog);
+	amsdos_type *amsdos = app_model_get_amsdos(model);
+	if (res == 1 && amsdos) {
+		gchar *filename = 
+			gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+		if (filename) {
+			LOG(LOG_DEBUG, "Chosen filename %s", filename);
+			if (amsdos_file_add(amsdos, filename, 
+					    filename,
+					    get_selected_user(model)) != DSK_OK) {
+				show_error_dialog(model, "Adding file to volume");
+			} else {
+				app_model_set_modified(model, true);
+				update_disk_info(model);
+				update_directory_info(model);
+				update_toolbar_status(model);
+			}
+			g_free(filename);
+		}
+	}   	
+}
+
+static void remove_selected_file(GtkTreeModel *tree_model,
+				 GtkTreePath *path,
+				 GtkTreeIter *iter,
+				 app_model_type *model) {
+	LOG(LOG_DEBUG, "remove_selected_file(model=%08x)", model);
+	char amsdos_name[13];
+	gchar *name;
+	gchar *extension;
+	gtk_tree_model_get(tree_model, iter, 0, &name, 1, &extension, -1);
+	strcpy(amsdos_name, name);
+	strcat(amsdos_name, ".");
+	strcat(amsdos_name, extension);
+	g_free(name);
+	g_free(extension);
+
+	uint8_t user = get_selected_user(model);
+	LOG(LOG_DEBUG, "Removing file %s.%s, user %u", name, extension, user);
+	amsdos_type *amsdos = app_model_get_amsdos(model);
+	if (amsdos_file_remove(amsdos, amsdos_name, user) != DSK_OK) {
+		show_error_dialog(model, "Removing file from volume");
+	} else {
+		app_model_set_modified(model, true);
+	}
+}
+
+G_MODULE_EXPORT void
+cb_dsk_remove_file(GtkToolButton *button, app_model_type *model) {
+	LOG(LOG_DEBUG, "cb_dsk_remove_file(model=%08x)", model);
+
+	GtkTreeView *view = 
+		GTK_TREE_VIEW(gtk_builder_get_object(app_model_get_builder(model),
+						  "file_treeview"));
+	GtkTreeSelection *selection = gtk_tree_view_get_selection(view);
+	gtk_tree_selection_selected_foreach(selection, 
+					    (GtkTreeSelectionForeachFunc) remove_selected_file, 
+					    model);
+	update_disk_info(model);
+	update_directory_info(model);
+	update_toolbar_status(model);
+}
+
+G_MODULE_EXPORT void
+cb_tree_selection_changed(GtkTreeSelection *tree_selection, 
+			  app_model_type *model) {
+	widget_set_sensitive(model, "remove_button", 
+			     gtk_tree_selection_count_selected_rows(tree_selection) > 0);
 }
