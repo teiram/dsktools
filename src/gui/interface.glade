@@ -1,6 +1,39 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <!-- interface-requires gtk+ 3.0 -->
+  <object class="GtkMessageDialog" id="confirm_dialog">
+    <property name="can_focus">False</property>
+    <property name="border_width">5</property>
+    <property name="type_hint">dialog</property>
+    <property name="skip_taskbar_hint">True</property>
+    <property name="message_type">question</property>
+    <property name="buttons">yes-no</property>
+    <child internal-child="vbox">
+      <object class="GtkBox" id="messagedialog-vbox3">
+        <property name="can_focus">False</property>
+        <property name="orientation">vertical</property>
+        <property name="spacing">2</property>
+        <child internal-child="action_area">
+          <object class="GtkButtonBox" id="messagedialog-action_area3">
+            <property name="can_focus">False</property>
+            <property name="layout_style">end</property>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="pack_type">end</property>
+            <property name="position">0</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+  </object>
   <object class="GtkFileChooserDialog" id="dsk_filechooser">
     <property name="can_focus">False</property>
     <property name="border_width">5</property>
@@ -135,7 +168,7 @@
     <property name="height_request">400</property>
     <property name="can_focus">False</property>
     <property name="border_width">6</property>
-    <signal name="destroy" handler="gtk_main_quit" swapped="no"/>
+    <signal name="delete-event" handler="cb_quit" swapped="no"/>
     <child>
       <object class="GtkBox" id="box1">
         <property name="visible">True</property>
@@ -214,7 +247,7 @@
                         <property name="can_focus">False</property>
                         <property name="use_underline">True</property>
                         <property name="use_stock">True</property>
-                        <signal name="activate" handler="gtk_main_quit" swapped="no"/>
+                        <signal name="activate" handler="cb_quit" swapped="no"/>
                       </object>
                     </child>
                   </object>

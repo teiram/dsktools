@@ -1,3 +1,22 @@
+/* 
+ * callbacks.c - GTK Callbacks
+ * Copyright (C)2016 Manuel Teira <manuel.teira@gmail.com>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ */
+
 #include <gtk/gtk.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -18,6 +37,23 @@ static void show_error_dialog(app_model_type *model, const char *message) {
 	error_reset();
 	gtk_dialog_run(GTK_DIALOG(dialog));
 	gtk_widget_hide(dialog);
+}
+
+static bool show_confirm_dialog(app_model_type *model, const char *fmt, ...) {
+	GtkWidget *dialog = 
+		GTK_WIDGET(gtk_builder_get_object(app_model_get_builder(model),
+						  "confirm_dialog"));
+	char message[256];
+	va_list ap;
+	va_start(ap, fmt);
+	vsnprintf(message, 255, fmt, ap);
+	va_end(ap);
+	gtk_message_dialog_set_markup(GTK_MESSAGE_DIALOG(dialog),
+				      message);
+	gint status = gtk_dialog_run(GTK_DIALOG(dialog));
+	LOG(LOG_INFO, "Confirm dialog returns %d", status);
+	gtk_widget_hide(dialog);
+	return status == GTK_RESPONSE_YES;
 }
 
 static int open_amsdos(const char *filename, app_model_type *model) {
@@ -138,7 +174,7 @@ static void update_directory_info(app_model_type *model) {
 	}
 }
 
-static bool is_filename_valid(gchar *filename) {
+static bool is_regular_file(gchar *filename) {
 	struct stat buf;
 	if (stat(filename, &buf)) {
 		LOG(LOG_ERROR, "Unable to stat file %s", filename);
@@ -158,7 +194,7 @@ cb_selection_changed(GtkFileChooser *chooser, app_model_type *model) {
 	gboolean enable = FALSE;
 	if (button) {
 		gchar *filename = gtk_file_chooser_get_filename(chooser);
-		if (filename && is_filename_valid(filename)) {
+		if (filename && is_regular_file(filename)) {
 			enable = TRUE;
 		}
 		g_free(filename);
@@ -177,6 +213,14 @@ cb_change_user(GtkSpinButton *spinbutton, app_model_type *model) {
 G_MODULE_EXPORT void 
 cb_dsk_open(GtkToolButton *button, app_model_type *model) {
 	LOG(LOG_DEBUG, "cb_dsk_open(model=%08x)", model);
+	if (app_model_get_amsdos(model) && app_model_get_modified(model)) {
+		if (show_confirm_dialog(model, "Discard changes on %s?",
+					app_model_get_filename(model))) {
+			app_model_reset(model);
+		} else {
+			return;
+		}
+	}
 	GtkWidget *dialog = 
 		GTK_WIDGET(gtk_builder_get_object(app_model_get_builder(model),
 						  "dsk_filechooser"));
@@ -206,11 +250,14 @@ cb_dsk_save(GtkToolButton *button, app_model_type *model) {
 	if (amsdos) {
 		gchar *filename = app_model_get_filename(model);
 		if (filename) {
-			if (dsk_image_dump(amsdos->dsk, filename) != DSK_OK) {
-				show_error_dialog(model, "Error saving image");
-			} else {
-				app_model_set_modified(model, false);
-				update_toolbar_status(model);
+			if (is_regular_file(filename) &&
+			    show_confirm_dialog(model, "Confirm overwriting of %s file", filename)) {
+				if (dsk_image_dump(amsdos->dsk, filename) != DSK_OK) {
+					show_error_dialog(model, "Error saving image");
+				} else {
+					app_model_set_modified(model, false);
+					update_toolbar_status(model);
+				}
 			}
 		} else {
 			LOG(LOG_WARN, "No filename defined");
@@ -313,4 +360,17 @@ cb_tree_selection_changed(GtkTreeSelection *tree_selection,
 			  app_model_type *model) {
 	widget_set_sensitive(model, "remove_button", 
 			     gtk_tree_selection_count_selected_rows(tree_selection) > 0);
+}
+
+G_MODULE_EXPORT void
+cb_quit(GtkWidget *widget, app_model_type *model) {
+	if (app_model_get_amsdos(model) &&
+	    app_model_get_modified(model)) {
+		if (!show_confirm_dialog(model, 
+					"Changes will be lost. Sure to quit?")) {
+			return;
+
+		}
+	}
+	gtk_main_quit();
 }
