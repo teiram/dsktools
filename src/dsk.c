@@ -383,11 +383,28 @@ static uint32_t get_sector_count(dsk_type *dsk) {
 	return sectors;
 }
 
+static char *copy_with_filter(char *dst, const char *src, size_t n, 
+			int (*filter)(int c)) {
+	size_t i;
+	for (i = 0; i < n && src[i] != '\0'; i++) {
+		if (filter(src[i])) {
+			dst[i] = src[i];
+		} else {
+			dst[i] = ' ';
+		}
+	}
+	for ( ; i < n; i++) {
+		dst[i] = '\0';
+	}
+	return dst;
+}
+
 dsk_info_type *dsk_get_info(dsk_type *dsk, dsk_info_type *info) {
 	if (dsk && dsk->dsk_info) {
 		memset(info, 0, sizeof(dsk_info_type));
 		strncpy(info->magic, dsk->dsk_info->magic, 34);
-		strncpy(info->creator, dsk->dsk_info->creator, 14);
+		copy_with_filter(info->creator, dsk->dsk_info->creator, 14,
+				 isalnum);
 		info->type = is_dsk_image(dsk) ? DSK : EDSK;
 		info->tracks = dsk->dsk_info->tracks;
 		info->sides = dsk->dsk_info->sides;
