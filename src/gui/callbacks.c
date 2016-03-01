@@ -39,7 +39,8 @@ static void show_error_dialog(app_model_type *model, const char *message) {
 	gtk_widget_hide(dialog);
 }
 
-static bool show_confirm_dialog(app_model_type *model, const char *fmt, ...) {
+static bool confirm_choice_with_dialog(app_model_type *model, 
+				       const char *fmt, ...) {
 	GtkWidget *dialog = 
 		GTK_WIDGET(gtk_builder_get_object(app_model_get_builder(model),
 						  "confirm_dialog"));
@@ -51,7 +52,7 @@ static bool show_confirm_dialog(app_model_type *model, const char *fmt, ...) {
 	gtk_message_dialog_set_markup(GTK_MESSAGE_DIALOG(dialog),
 				      message);
 	gint status = gtk_dialog_run(GTK_DIALOG(dialog));
-	LOG(LOG_INFO, "Confirm dialog returns %d", status);
+	LOG(LOG_DEBUG, "Confirm dialog returns %d", status);
 	gtk_widget_hide(dialog);
 	return status == GTK_RESPONSE_YES;
 }
@@ -66,20 +67,20 @@ static int open_amsdos(const char *filename, app_model_type *model) {
 	}
 }
 
-static void update_disk_info_field(app_model_type *model,
-				   const char *item,
-				   const char *fmt, ...) {
+static void update_label(app_model_type *model,
+			 const char *item,
+			 const char *fmt, ...) {
 	GtkBuilder *builder = GTK_BUILDER(app_model_get_builder(model));
 	if (builder) {
 		char value[32];
 		va_list ap;
-		GtkEntry *entry = 
-			GTK_ENTRY(gtk_builder_get_object(builder, item));
-		if (entry) {
+		GtkLabel *label = 
+			GTK_LABEL(gtk_builder_get_object(builder, item));
+		if (label) {
 			va_start(ap, fmt);
 			vsnprintf(value, 31, fmt, ap);
 			va_end(ap);
-			gtk_entry_set_text(entry, value);
+			gtk_label_set_text(label, value);
 		} else {
 			LOG(LOG_ERROR, "Unable to find item %s", item);
 		}
@@ -93,16 +94,16 @@ static void update_disk_info(app_model_type *model) {
 	if (amsdos) {
 		amsdos_info_type info;
 		amsdos_get_info(amsdos, &info);
-		update_disk_info_field(model, "format_info", info.dsk_info.type == DSK ? "DSK" : "EDSK" );
-		update_disk_info_field(model, "header_info", info.dsk_info.magic);
-		update_disk_info_field(model, "creator_info", info.dsk_info.creator);
-		update_disk_info_field(model, "type_info", AMSDOS_DISK_STR(info.type));
-		update_disk_info_field(model, "tracks_info", "%d", info.dsk_info.tracks);
-		update_disk_info_field(model, "sides_info", "%d", info.dsk_info.sides);
-		update_disk_info_field(model, "sectors_info", "%d", info.dsk_info.sectors);
-		update_disk_info_field(model, "first_sector_info", "%02X", info.dsk_info.first_sector_id);
-		update_disk_info_field(model, "size_info", "%d", info.dsk_info.capacity);
-		update_disk_info_field(model, "used_info", "%d", info.used);
+		update_label(model, "format_info", info.dsk_info.type == DSK ? "DSK" : "EDSK" );
+		update_label(model, "header_info", info.dsk_info.magic);
+		update_label(model, "creator_info", info.dsk_info.creator);
+		update_label(model, "type_info", AMSDOS_DISK_STR(info.type));
+		update_label(model, "tracks_info", "%d", info.dsk_info.tracks);
+		update_label(model, "sides_info", "%d", info.dsk_info.sides);
+		update_label(model, "sectors_info", "%d", info.dsk_info.sectors);
+		update_label(model, "first_sector_info", "%02X", info.dsk_info.first_sector_id);
+		update_label(model, "size_info", "%d", info.dsk_info.capacity);
+		update_label(model, "used_info", "%d", info.used);
 
 	}
 }
@@ -123,20 +124,27 @@ static void widget_set_sensitive(app_model_type *model, const char *name,
 		if (widget) {
 			gtk_widget_set_sensitive(widget, value);
 		} else {
-			LOG(LOG_ERROR, "Unable to find widget %s", name);
+			LOG(LOG_WARN, "Unable to find widget %s", name);
 		}
 	} else {
 		LOG(LOG_ERROR, "No builder in model");
 	}
 }
 
-static void update_toolbar_status(app_model_type *model) {
-	gboolean enable = app_model_get_amsdos(model) ? TRUE : FALSE;
-	widget_set_sensitive(model, "write_button", enable);
-	widget_set_sensitive(model, "add_button", enable);
+static void update_sensitive_status(app_model_type *model) {
+	gboolean model_loaded = app_model_get_amsdos(model) ? TRUE : FALSE;
+	gboolean is_modified = app_model_get_modified(model) ? TRUE : FALSE;
 
-	widget_set_sensitive(model, "save_button", 
-			     app_model_get_modified(model) ? TRUE: FALSE);
+	widget_set_sensitive(model, "write_button", model_loaded);
+	widget_set_sensitive(model, "add_button", model_loaded);
+
+	widget_set_sensitive(model, "save_button", is_modified);
+	
+	/* Also the menu entries from here, to keep consistency*/
+	widget_set_sensitive(model, "menu_savedsk", is_modified);
+	widget_set_sensitive(model, "menu_savedsk_as", model_loaded);
+	widget_set_sensitive(model, "user_spinbutton", model_loaded);
+	widget_set_sensitive(model, "diskinfo_expander", model_loaded);
 }
 
 static void update_directory_info(app_model_type *model) {
@@ -148,16 +156,12 @@ static void update_directory_info(app_model_type *model) {
 
 		uint8_t selected_user = get_selected_user(model);
 		LOG(LOG_DEBUG, "Selected user : %u", selected_user);
-		amsdos_dir_type dir_entries[AMSDOS_NUM_DIRENT];
 		GtkTreeIter iter;
 		gtk_list_store_clear(file_store);
 		char name_buffer[9];
 		char ext_buffer[4];
 		for (int i = 0; i < AMSDOS_NUM_DIRENT; i++) {
-			amsdos_get_dir(amsdos, &dir_entries[i], i);
-		}
-		for (int i = 0; i < AMSDOS_NUM_DIRENT; i++) {
-			amsdos_dir_type *dir_entry = &dir_entries[i];
+			amsdos_dir_type *dir_entry = amsdos_get_dir(amsdos, i);
 			if (!amsdos_is_dir_deleted(dir_entry) &&
 			    dir_entry->extent_low == 0 &&
 			    dir_entry->record_count > 0 &&
@@ -166,7 +170,8 @@ static void update_directory_info(app_model_type *model) {
 				gtk_list_store_set(file_store, &iter,
 						   0, amsdos_get_dir_basename(dir_entry, name_buffer),
 						   1, amsdos_get_dir_extension(dir_entry, ext_buffer),
-						   2, amsdos_get_dir_size(dir_entries, i),
+						   2, amsdos_get_dir_size(amsdos, i),
+						   3, i,
 						   -1);
 			}
 		}
@@ -176,7 +181,7 @@ static void update_directory_info(app_model_type *model) {
 static bool is_regular_file(gchar *filename) {
 	struct stat buf;
 	if (stat(filename, &buf)) {
-		LOG(LOG_ERROR, "Unable to stat file %s", filename);
+		LOG(LOG_DEBUG, "Unable to stat file %s", filename);
 		return false;
 	} else {
 		return S_ISREG(buf.st_mode);
@@ -213,7 +218,7 @@ G_MODULE_EXPORT void
 cb_dsk_open(GtkToolButton *button, app_model_type *model) {
 	LOG(LOG_DEBUG, "cb_dsk_open(model=%08x)", model);
 	if (app_model_get_amsdos(model) && app_model_get_modified(model)) {
-		if (show_confirm_dialog(model, "Discard changes on %s?",
+		if (confirm_choice_with_dialog(model, "Discard changes on %s?",
 					app_model_get_filename(model))) {
 			app_model_reset(model);
 		} else {
@@ -236,7 +241,7 @@ cb_dsk_open(GtkToolButton *button, app_model_type *model) {
 				app_model_set_filename(model, filename);
 				update_disk_info(model);
 				update_directory_info(model);
-				update_toolbar_status(model);
+				update_sensitive_status(model);
 			}
 		}
 	}   
@@ -250,12 +255,12 @@ cb_dsk_save(GtkToolButton *button, app_model_type *model) {
 		gchar *filename = app_model_get_filename(model);
 		if (filename) {
 			if (is_regular_file(filename) &&
-			    show_confirm_dialog(model, "Confirm overwriting of %s file", filename)) {
+			    confirm_choice_with_dialog(model, "Confirm overwriting of %s file", filename)) {
 				if (dsk_save_image(amsdos->dsk, filename) != DSK_OK) {
 					show_error_dialog(model, "Error saving image");
 				} else {
 					app_model_set_modified(model, false);
-					update_toolbar_status(model);
+					update_sensitive_status(model);
 				}
 			}
 		} else {
@@ -264,6 +269,44 @@ cb_dsk_save(GtkToolButton *button, app_model_type *model) {
 	} else {
 		LOG(LOG_ERROR, "No amsdos object created");
 	}
+}
+
+static bool validate_file_overwrite(app_model_type *model, gchar *filename) {
+	return !is_regular_file(filename) || 
+		confirm_choice_with_dialog(model, "Confirm overwriting of %s file",
+				    filename);
+}
+
+G_MODULE_EXPORT void
+cb_dsk_save_as(GtkToolButton *button, app_model_type *model) {
+	LOG(LOG_DEBUG, "cb_dsk_save_as(model=%08x)", model);
+	GtkWidget *dialog = 
+		GTK_WIDGET(gtk_builder_get_object(app_model_get_builder(model),
+						  "savedsk_filechooser"));
+	gint res = gtk_dialog_run(GTK_DIALOG(dialog));
+	gtk_widget_hide(dialog);
+	if (res == 1) {
+		char *filename = 
+			gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
+		amsdos_type *amsdos = app_model_get_amsdos(model);
+		if (amsdos) {
+			if (filename) {
+				if (validate_file_overwrite(model, filename)) {
+					if (dsk_save_image(amsdos->dsk, filename) != DSK_OK) {
+						show_error_dialog(model, "Error saving image");
+					} else {
+						app_model_set_modified(model, false);
+						app_model_set_filename(model, filename);
+						update_sensitive_status(model);
+					}
+				}
+			} else {
+				LOG(LOG_WARN, "No filename defined");
+			}
+		} else {
+			LOG(LOG_ERROR, "No amsdos object created");
+		}
+	} 
 }
 
 G_MODULE_EXPORT void
@@ -306,7 +349,7 @@ cb_dsk_add_file(GtkToolButton *button, app_model_type *model) {
 				app_model_set_modified(model, true);
 				update_disk_info(model);
 				update_directory_info(model);
-				update_toolbar_status(model);
+				update_sensitive_status(model);
 			}
 			g_free(filename);
 		}
@@ -338,6 +381,60 @@ static void remove_selected_file(GtkTreeModel *tree_model,
 	}
 }
 
+static void update_file_info(GtkTreeModel *tree_model,
+			     GtkTreePath *path,
+			     GtkTreeIter *iter,
+			     app_model_type *model) {
+	int file_index;
+	gtk_tree_model_get(tree_model, iter, 3, &file_index, -1);
+	amsdos_file_info_list *info = 
+		amsdos_get_file_info(app_model_get_amsdos(model), file_index);
+	if (info) {
+		update_label(model, "file_type_info", "%s", 
+			     AMSDOS_FILE_TYPE(info->amsdos_type));
+		if (info->amsdos_type != AMSDOS_TYPE_ASCII) {
+			update_label(model, "file_load_addr_info", "0x%04x", 
+				     info->load_address);
+			update_label(model, "file_exec_addr_info", "0x%04x",
+				     info->exec_address);
+		} else {
+			update_label(model, "file_load_addr_info", "-");
+			update_label(model, "file_exec_addr_info", "-");
+		}
+
+		update_label(model, "file_flags_info", "%c%c%c", 
+			     AMSDOS_FLAG_REP(info->flags, READ_ONLY, 'R', '-'),
+			     AMSDOS_FLAG_REP(info->flags, SYSTEM, 'S', '-'),
+			     AMSDOS_FLAG_REP(info->flags, ARCHIVED, 'A', '-'));
+		update_label(model, "file_extents_info", "%d",
+			     info->extents);
+
+	}
+}
+
+static void reset_fileinfo_expander(app_model_type *model) {
+	update_label(model, "file_type_info", "-");
+	update_label(model, "file_extents_info", "-");
+	update_label(model, "file_load_addr_info", "-");
+	update_label(model, "file_exec_addr_info", "-");
+	update_label(model, "file_flags_info", "-");
+}
+
+static void update_fileinfo_expander(app_model_type *model,
+				     GtkTreeSelection *selection) {
+	gint selected_files = 
+		gtk_tree_selection_count_selected_rows(selection);
+
+	if (selected_files != 1) {
+		reset_fileinfo_expander(model);
+	} else {
+		gtk_tree_selection_selected_foreach(selection, 
+						    (GtkTreeSelectionForeachFunc) update_file_info, 
+						    model);
+
+								    
+	}
+}
 G_MODULE_EXPORT void
 cb_dsk_remove_file(GtkToolButton *button, app_model_type *model) {
 	LOG(LOG_DEBUG, "cb_dsk_remove_file(model=%08x)", model);
@@ -351,22 +448,28 @@ cb_dsk_remove_file(GtkToolButton *button, app_model_type *model) {
 					    model);
 	update_disk_info(model);
 	update_directory_info(model);
-	update_toolbar_status(model);
+	update_sensitive_status(model);
 }
 
 G_MODULE_EXPORT void
 cb_tree_selection_changed(GtkTreeSelection *tree_selection, 
 			  app_model_type *model) {
+	gint selected_files = 
+		gtk_tree_selection_count_selected_rows(tree_selection);
+
 	widget_set_sensitive(model, "remove_button", 
-			     gtk_tree_selection_count_selected_rows(tree_selection) > 0);
+			     selected_files > 0);
+	widget_set_sensitive(model, "fileinfo_expander",
+			     selected_files == 1);
+	update_fileinfo_expander(model, tree_selection);
 }
 
 G_MODULE_EXPORT void
 cb_quit(GtkWidget *widget, app_model_type *model) {
 	if (app_model_get_amsdos(model) &&
 	    app_model_get_modified(model)) {
-		if (!show_confirm_dialog(model, 
-					"Changes will be lost. Sure to quit?")) {
+		if (!confirm_choice_with_dialog(model, 
+						"Changes will be lost. Sure to quit?")) {
 			return;
 
 		}

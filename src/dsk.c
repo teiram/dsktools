@@ -199,6 +199,10 @@ static int32_t get_sector_offset(dsk_type *dsk,
 	return offset;
 }
 
+uint8_t *dsk_get_sector_mapping_addr(dsk_type *dsk, uint8_t sector) {
+	return dsk->image + get_sector_offset(dsk, sector);
+}
+
 uint32_t dsk_get_sector_offset(dsk_type *dsk, 
 			       uint8_t track_id, uint8_t side, 
 			       uint8_t sector_id) {

@@ -37,6 +37,8 @@ typedef enum {
 	EDSK
 } dsk_image_type;
 
+#pragma pack(1)
+
 typedef struct {
 	char magic[34];
 	char creator[14];
@@ -97,6 +99,8 @@ dsk_info_type *dsk_get_info(dsk_type *dsk, dsk_info_type *info);
 uint32_t dsk_get_sector_offset(dsk_type *dsk, 
 			       uint8_t track_id, uint8_t side, 
 			       uint8_t sector_id);
+uint8_t *dsk_get_sector_mapping_addr(dsk_type *dsk, 
+				     uint8_t sector);
 track_header_type *dsk_get_track_info(dsk_type *dsk,
 				      uint8_t track,
 				      bool validate);

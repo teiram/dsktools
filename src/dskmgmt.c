@@ -91,21 +91,10 @@ int get_info(const char *filename) {
 
 int list_dsk(const char *filename) {
 	amsdos_type *amsdos = amsdos_new(filename);
+	char buffer[14];
 	if (amsdos) {
-		amsdos_dir_type dir_entries[AMSDOS_NUM_DIRENT];
-		char buffer[13];
 		for (int i = 0; i < AMSDOS_NUM_DIRENT; i++) {
-			amsdos_get_dir(amsdos, &dir_entries[i], i);
-			LOG(LOG_DEBUG, 
-			    "Entry for user %d, name %s, extent %d, records %u", 
-			    dir_entries[i].user,
-			    amsdos_get_dir_name(&dir_entries[i], buffer),
-			    dir_entries[i].extent_low,
-			    dir_entries[i].record_count);
-		}
-		for (int i = 0; i < AMSDOS_NUM_DIRENT; i++) {
-			amsdos_dir_type *dir_entry = &dir_entries[i];
-			
+			amsdos_dir_type *dir_entry = amsdos_get_dir(amsdos, i);
 			if (!amsdos_is_dir_deleted(dir_entry) && 
 			    dir_entry->extent_low == 0 &&
 			    dir_entry->record_count > 0) {
@@ -113,7 +102,7 @@ int list_dsk(const char *filename) {
 				fprintf(stderr, "%s (user %d) %6d bytes\n", 
 					amsdos_get_dir_name(dir_entry, buffer),
 					dir_entry->user,
-					amsdos_get_dir_size(dir_entries, i));
+					amsdos_get_dir_size(amsdos, i));
 			}
 		}
 		amsdos_delete(amsdos);
