@@ -95,7 +95,6 @@ static void update_disk_info(app_model_type *model) {
 		amsdos_info_type info;
 		amsdos_get_info(amsdos, &info);
 		update_label(model, "format_info", info.dsk_info.type == DSK ? "DSK" : "EDSK" );
-		update_label(model, "header_info", info.dsk_info.magic);
 		update_label(model, "creator_info", info.dsk_info.creator);
 		update_label(model, "type_info", AMSDOS_DISK_STR(info.type));
 		update_label(model, "tracks_info", "%d", info.dsk_info.tracks);
