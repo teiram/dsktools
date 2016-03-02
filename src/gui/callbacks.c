@@ -436,7 +436,7 @@ static void update_fileinfo_expander(app_model_type *model,
 	}
 }
 G_MODULE_EXPORT void
-cb_dsk_remove_file(GtkToolButton *button, app_model_type *model) {
+cb_dsk_remove_file(void *source, app_model_type *model) {
 	LOG(LOG_DEBUG, "cb_dsk_remove_file(model=%08x)", model);
 
 	GtkTreeView *view = 
@@ -459,6 +459,7 @@ cb_tree_selection_changed(GtkTreeSelection *tree_selection,
 
 	widget_set_sensitive(model, "remove_button", 
 			     selected_files > 0);
+	widget_set_sensitive(model, "menu_delete", selected_files > 0);
 	widget_set_sensitive(model, "fileinfo_expander",
 			     selected_files == 1);
 	update_fileinfo_expander(model, tree_selection);
