@@ -690,9 +690,6 @@
                             <property name="label" translatable="yes">-</property>
                             <property name="justify">right</property>
                             <property name="selectable">True</property>
-                            <attributes>
-                              <attribute name="weight" value="bold"/>
-                            </attributes>
                           </object>
                           <packing>
                             <property name="left_attach">1</property>
@@ -724,9 +721,6 @@
                             <property name="label" translatable="yes">-</property>
                             <property name="justify">right</property>
                             <property name="selectable">True</property>
-                            <attributes>
-                              <attribute name="weight" value="bold"/>
-                            </attributes>
                           </object>
                           <packing>
                             <property name="left_attach">1</property>
@@ -758,9 +752,6 @@
                             <property name="label" translatable="yes">-</property>
                             <property name="justify">right</property>
                             <property name="selectable">True</property>
-                            <attributes>
-                              <attribute name="weight" value="bold"/>
-                            </attributes>
                           </object>
                           <packing>
                             <property name="left_attach">1</property>
@@ -792,9 +783,6 @@
                             <property name="label" translatable="yes">-</property>
                             <property name="justify">right</property>
                             <property name="selectable">True</property>
-                            <attributes>
-                              <attribute name="weight" value="bold"/>
-                            </attributes>
                           </object>
                           <packing>
                             <property name="left_attach">1</property>
@@ -826,9 +814,6 @@
                             <property name="label" translatable="yes">-</property>
                             <property name="justify">right</property>
                             <property name="selectable">True</property>
-                            <attributes>
-                              <attribute name="weight" value="bold"/>
-                            </attributes>
                           </object>
                           <packing>
                             <property name="left_attach">1</property>
@@ -860,9 +845,6 @@
                             <property name="label" translatable="yes">-</property>
                             <property name="justify">right</property>
                             <property name="selectable">True</property>
-                            <attributes>
-                              <attribute name="weight" value="bold"/>
-                            </attributes>
                           </object>
                           <packing>
                             <property name="left_attach">1</property>
@@ -894,9 +876,6 @@
                             <property name="label" translatable="yes">-</property>
                             <property name="justify">right</property>
                             <property name="selectable">True</property>
-                            <attributes>
-                              <attribute name="weight" value="bold"/>
-                            </attributes>
                           </object>
                           <packing>
                             <property name="left_attach">1</property>
@@ -928,9 +907,6 @@
                             <property name="label" translatable="yes">-</property>
                             <property name="justify">right</property>
                             <property name="selectable">True</property>
-                            <attributes>
-                              <attribute name="weight" value="bold"/>
-                            </attributes>
                           </object>
                           <packing>
                             <property name="left_attach">1</property>
@@ -963,9 +939,6 @@
                             <property name="label" translatable="yes">-</property>
                             <property name="justify">right</property>
                             <property name="selectable">True</property>
-                            <attributes>
-                              <attribute name="weight" value="bold"/>
-                            </attributes>
                           </object>
                           <packing>
                             <property name="left_attach">1</property>
@@ -1078,9 +1051,6 @@
                             <property name="can_focus">False</property>
                             <property name="halign">start</property>
                             <property name="label" translatable="yes">-</property>
-                            <attributes>
-                              <attribute name="weight" value="bold"/>
-                            </attributes>
                           </object>
                           <packing>
                             <property name="left_attach">1</property>
@@ -1095,9 +1065,6 @@
                             <property name="can_focus">False</property>
                             <property name="halign">start</property>
                             <property name="label" translatable="yes">-</property>
-                            <attributes>
-                              <attribute name="weight" value="bold"/>
-                            </attributes>
                           </object>
                           <packing>
                             <property name="left_attach">1</property>
@@ -1112,9 +1079,6 @@
                             <property name="can_focus">False</property>
                             <property name="halign">start</property>
                             <property name="label" translatable="yes">-</property>
-                            <attributes>
-                              <attribute name="weight" value="bold"/>
-                            </attributes>
                           </object>
                           <packing>
                             <property name="left_attach">1</property>
@@ -1129,9 +1093,6 @@
                             <property name="can_focus">False</property>
                             <property name="halign">start</property>
                             <property name="label" translatable="yes">-</property>
-                            <attributes>
-                              <attribute name="weight" value="bold"/>
-                            </attributes>
                           </object>
                           <packing>
                             <property name="left_attach">1</property>
@@ -1146,9 +1107,6 @@
                             <property name="can_focus">False</property>
                             <property name="halign">start</property>
                             <property name="label" translatable="yes">-</property>
-                            <attributes>
-                              <attribute name="weight" value="bold"/>
-                            </attributes>
                           </object>
                           <packing>
                             <property name="left_attach">1</property>
