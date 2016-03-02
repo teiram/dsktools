@@ -42,7 +42,7 @@
       <column type="gchararray"/>
       <!-- column-name Size -->
       <column type="gint"/>
-      <!-- column-name gint1 -->
+      <!-- column-name Id -->
       <column type="gint"/>
     </columns>
     <data>
@@ -56,13 +56,13 @@
         <col id="0" translatable="yes">ABADIA</col>
         <col id="1" translatable="yes">BIN</col>
         <col id="2">12432</col>
-        <col id="3">0</col>
+        <col id="3">100</col>
       </row>
       <row>
         <col id="0" translatable="yes">README</col>
         <col id="1" translatable="yes">TXT</col>
         <col id="2">542</col>
-        <col id="3">0</col>
+        <col id="3">200</col>
       </row>
     </data>
   </object>
@@ -665,6 +665,7 @@
                           <object class="GtkLabel" id="label2">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="xalign">0</property>
                             <property name="label" translatable="yes">Format:</property>
                           </object>
@@ -679,6 +680,7 @@
                           <object class="GtkLabel" id="format_info">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="xalign">0.44999998807907104</property>
                             <property name="label" translatable="yes">-</property>
                             <property name="justify">right</property>
@@ -698,6 +700,7 @@
                           <object class="GtkLabel" id="label3">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="xalign">0</property>
                             <property name="label" translatable="yes">Type:</property>
                           </object>
@@ -712,6 +715,7 @@
                           <object class="GtkLabel" id="type_info">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="label" translatable="yes">-</property>
                             <property name="justify">right</property>
                             <property name="selectable">True</property>
@@ -730,6 +734,7 @@
                           <object class="GtkLabel" id="label4">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="xalign">0</property>
                             <property name="label" translatable="yes">Size:</property>
                           </object>
@@ -744,6 +749,7 @@
                           <object class="GtkLabel" id="size_info">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="label" translatable="yes">-</property>
                             <property name="justify">right</property>
                             <property name="selectable">True</property>
@@ -762,6 +768,7 @@
                           <object class="GtkLabel" id="label6">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="xalign">0</property>
                             <property name="label" translatable="yes">Used:</property>
                           </object>
@@ -776,6 +783,7 @@
                           <object class="GtkLabel" id="used_info">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="label" translatable="yes">-</property>
                             <property name="justify">right</property>
                             <property name="selectable">True</property>
@@ -794,6 +802,7 @@
                           <object class="GtkLabel" id="label8">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="xalign">0</property>
                             <property name="label" translatable="yes">Sides:</property>
                           </object>
@@ -808,6 +817,7 @@
                           <object class="GtkLabel" id="sides_info">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="label" translatable="yes">-</property>
                             <property name="justify">right</property>
                             <property name="selectable">True</property>
@@ -826,6 +836,7 @@
                           <object class="GtkLabel" id="label10">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="xalign">0</property>
                             <property name="label" translatable="yes">Tracks:</property>
                           </object>
@@ -840,6 +851,7 @@
                           <object class="GtkLabel" id="tracks_info">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="label" translatable="yes">-</property>
                             <property name="justify">right</property>
                             <property name="selectable">True</property>
@@ -858,6 +870,7 @@
                           <object class="GtkLabel" id="label12">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="xalign">0</property>
                             <property name="label" translatable="yes">Sectors:</property>
                           </object>
@@ -872,6 +885,7 @@
                           <object class="GtkLabel" id="sectors_info">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="label" translatable="yes">-</property>
                             <property name="justify">right</property>
                             <property name="selectable">True</property>
@@ -890,6 +904,7 @@
                           <object class="GtkLabel" id="label14">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="xalign">0</property>
                             <property name="label" translatable="yes">First Sector:</property>
                           </object>
@@ -904,6 +919,7 @@
                           <object class="GtkLabel" id="first_sector_info">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="label" translatable="yes">-</property>
                             <property name="justify">right</property>
                             <property name="selectable">True</property>
@@ -922,6 +938,7 @@
                           <object class="GtkLabel" id="label5">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="xalign">0</property>
                             <property name="label" translatable="yes">Creator:</property>
                           </object>
@@ -936,6 +953,7 @@
                           <object class="GtkLabel" id="creator_info">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="xalign">0</property>
                             <property name="label" translatable="yes">-</property>
                             <property name="justify">right</property>
@@ -983,6 +1001,7 @@
                           <object class="GtkLabel" id="label9">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="label" translatable="yes">Flags:</property>
                           </object>
                           <packing>
@@ -996,6 +1015,7 @@
                           <object class="GtkLabel" id="label11">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="label" translatable="yes">Extents:</property>
                           </object>
                           <packing>
@@ -1009,6 +1029,7 @@
                           <object class="GtkLabel" id="label15">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="label" translatable="yes">Type:</property>
                           </object>
                           <packing>
@@ -1022,6 +1043,7 @@
                           <object class="GtkLabel" id="label16">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="label" translatable="yes">Load Addr:</property>
                           </object>
                           <packing>
@@ -1035,6 +1057,7 @@
                           <object class="GtkLabel" id="label17">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="label" translatable="yes">Exec Addr:</property>
                           </object>
                           <packing>
@@ -1048,6 +1071,7 @@
                           <object class="GtkLabel" id="file_flags_info">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="label" translatable="yes">-</property>
                             <attributes>
                               <attribute name="weight" value="bold"/>
@@ -1064,6 +1088,7 @@
                           <object class="GtkLabel" id="file_extents_info">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="label" translatable="yes">-</property>
                             <attributes>
                               <attribute name="weight" value="bold"/>
@@ -1080,6 +1105,7 @@
                           <object class="GtkLabel" id="file_type_info">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="label" translatable="yes">-</property>
                             <attributes>
                               <attribute name="weight" value="bold"/>
@@ -1096,6 +1122,7 @@
                           <object class="GtkLabel" id="file_load_addr_info">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="label" translatable="yes">-</property>
                             <attributes>
                               <attribute name="weight" value="bold"/>
@@ -1112,6 +1139,7 @@
                           <object class="GtkLabel" id="file_exec_addr_info">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="halign">start</property>
                             <property name="label" translatable="yes">-</property>
                             <attributes>
                               <attribute name="weight" value="bold"/>
