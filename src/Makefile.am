@@ -1,3 +1,4 @@
+AUTOMAKE_OPTIONS = subdir-objects
 AM_CFLAGS = -Wall -std=c99 -D_POSIX_C_SOURCE=200809L -O2
 AM_LDFLAGS = 
 
@@ -19,10 +20,7 @@ dskread_LDADD = libdsk.la
 dskwrite_LDADD = libdsk.la
 
 if ENABLE_GUI
-#SUBDIRS = gui
-#AM_CPPFLAGS = @GTK_CFLAGS@
-
-bin_PROGRAMS = dskgui
+bin_PROGRAMS += dskgui
 dskgui_SOURCES = gui/dskgui.c gui/app_model.c gui/callbacks.c
 dskgui_LDADD = libdsk.la @GTK_LIBS@
 dskgui_CFLAGS = $(AM_CFLAGS) @GTK_CFLAGS@ 

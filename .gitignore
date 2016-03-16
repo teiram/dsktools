@@ -8,6 +8,7 @@ dskgui
 *.lo
 .libs
 m4
+compile
 config.guess
 config.sub
 libtool

@@ -99,6 +99,15 @@ typedef struct {
 	uint8_t blocks[AMSDOS_BLOCKS_DIRENT];
 } amsdos_dir_type;
 
+typedef struct {
+	char name[AMSDOS_NAME_LEN + 1];
+	char extension[AMSDOS_EXT_LEN + 1];
+	uint8_t flags;
+	uint8_t amsdos_type;
+	uint16_t load_address;
+	uint16_t exec_address;
+} amsdos_file_def_type;
+
 typedef struct _amsdos_file_info_list {
 	char name[AMSDOS_NAME_LEN + 1];
 	char extension[AMSDOS_EXT_LEN + 1];
@@ -143,6 +152,8 @@ typedef struct {
 	amsdos_disk_type type;
 } amsdos_info_type;
 
+char *get_amsdos_filename(const char *name, char *buffer);
+char *get_amsdos_extension(const char *name, char *buffer);
 amsdos_type *amsdos_new(const char *filename);
 amsdos_type *amsdos_new_empty(uint8_t tracks, uint8_t sides, 
 			      uint8_t sectors_per_track,
@@ -178,4 +189,10 @@ int amsdos_add_binary_file(amsdos_type *amsdos, const char *source_file,
 int amsdos_remove_file(amsdos_type *amsdos, const char *name, uint8_t user);
 bool amsdos_exists_file(amsdos_type *amsdos, const char *name, uint8_t user);
 amsdos_header_type *amsdos_get_file_header(amsdos_type *amsdos, uint8_t file_index);
+bool amsdos_has_header(const char *filename);
+amsdos_file_def_type *amsdos_get_file_def_from_header(const char *filename,
+						      amsdos_file_def_type *file_def);
+amsdos_file_def_type *amsdos_create_file_def_from_name(const char *filename,
+						       amsdos_file_def_type *file_def);
+
 #endif //AMSDOS_H

@@ -81,7 +81,7 @@ static const char* get_basename(const char *name) {
 	return result;
 }
 
-static char *get_amsdos_filename(const char *name, char *buffer) {
+char *get_amsdos_filename(const char *name, char *buffer) {
 	LOG(LOG_TRACE, "get_amsdos_filename(name=%s)", name);
 
 	const char *name_ptr = get_basename(name);
@@ -99,7 +99,7 @@ static char *get_amsdos_filename(const char *name, char *buffer) {
 	return buffer;
 }
 
-static char *get_amsdos_extension(const char *name, char *buffer) {
+char *get_amsdos_extension(const char *name, char *buffer) {
 	LOG(LOG_TRACE, "get_amsdos_extension(name=%s)", name);
 	const char* name_ptr = get_basename(name);
 	char *separator = strstr(name_ptr, ".");
@@ -850,4 +850,50 @@ amsdos_file_info_list *amsdos_get_file_info(amsdos_type *amsdos, int index) {
 		amsdos_fill_file_info(amsdos, index, item);
 	}
 	return item;
+}
+
+bool amsdos_has_header(const char *filename) {
+	amsdos_header_type header;
+	FILE *stream = fopen(filename, "r");
+	if (stream) {
+		size_t nread =
+			fread(&header, sizeof(amsdos_header_type), 1, stream);
+		fclose(stream);
+		if (nread == 1) {
+			return is_amsdos_header(&header);
+		}
+	}
+	return false;
+}
+
+amsdos_file_def_type *amsdos_get_file_def_from_header(const char *filename,
+						      amsdos_file_def_type *file_def) {
+	amsdos_header_type header;
+	FILE *stream = fopen(filename, "r");
+	if (stream) {
+		size_t nread =
+			fread(&header, sizeof(amsdos_header_type), 1, stream);
+		fclose(stream);
+		if (nread == 1 && is_amsdos_header(&header)) {
+			strncpy(file_def->name, header->name, AMSDOS_NAME_LEN);
+			strncpy(file_def->extension, header->extension,
+				AMSDOS_EXT_LEN);
+			file_def->flags = 0;
+			file_def->load_address = header->load_address;
+			file_def->exec_address = header->entry_address;
+			file_def->amsdos_type = header->type;
+			return file_def;
+		}
+	}
+	return NULL;
+}
+
+amsdos_file_def_type *amsdos_create_file_def_from_name(const char *filename,
+						       amsdos_file_def_type *file_def) {
+	amsdos_get_dir_basename(filename, (char*)&(file_def->name));
+	amsdos_get_dir_extension(filename, (char*)&(file_def->extension));
+	file_def->flags = 0;
+	file_def->load_address = 0;
+	file_def->exec_address = 0;
+	return file_def;
 }

@@ -327,11 +327,106 @@ cb_dsk_write(GtkToolButton *button, app_model_type *model) {
 }
 
 G_MODULE_EXPORT void
+cb_dsk_add_change_selection(GtkFileChooser *chooser,
+			    app_model_type *model) {
+	LOG(LOG_DEBUG, "cb_dsk_add_change_selection");
+	amsdos_file_def_type file_def;
+	if (get_file_def_from_form(chooser, &file_def)) {
+		update_file_def_in_form(model, file_def);
+	}
+	
+	GtkEntry *name_entry =
+		GTK_ENTRY(gtk_builder_get_object(app_model_get_builder(model),
+						 "add_amsdos_filename"));
+	GtkEntry *extension_entry =
+		GTK_ENTRY(gtk_builder_get_object(app_model_get_builder(model),
+						 "add_amsdos_extension"));
+	char proposed_name[AMSDOS_NAME_LEN + 1];
+	char proposed_extension[AMSDOS_EXT_LEN + 1];
+	proposed_name[0] = 0;
+	proposed_extension[0] = 0;
+	gchar *filename = gtk_file_chooser_get_filename(chooser);
+	if (filename) {
+		if (is_regular_file(filename)) {
+
+			get_amsdos_filename(filename, proposed_name);
+			get_amsdos_extension(filename,
+					     proposed_extension);
+		}
+		g_free(filename);
+	}
+	gtk_entry_set_text(name_entry, proposed_name);
+	gtk_entry_set_text(extension_entry, proposed_extension);
+}
+
+static void set_entry_text(app_model_type *model, const char *entry_name,
+			   const char *value) {
+	GtkBuilder *builder = app_model_get_builder(model);
+	GtkEntry *entry = GTK_ENTRY(gtk_builder_get_object(builder, entry_name));
+	if (entry) {
+		gtk_entry_set_text(entry, value);
+	}
+}
+
+static void update_file_def_in_form(app_model_type *model,
+				    amsdos_file_def_type *file_def) {
+	set_entry_text(model, "add_amsdos_filename", file_def->name);
+	set_entry_text(model, "add_amsdos_extension", file_def->extension);
+	
+	set_entry_value(GTK_ENTRY(gtk_builder_get_object(builder,
+							 "add_amsdos_filename")),
+			file_def->name);
+	set_entry_value(GTK_ENTRY(gtk_builder_get_object(builder,
+							 "add_amsdos_extension")),
+			file_def->extension);
+	
+	
+	GtkEntry *name_entry =
+		GTK_ENTRY(gtk_builder_get_object(app_model_get_builder(model),
+						 "add_amsdos_filename"));
+	GtkEntry *extension_entry =
+		GTK_ENTRY(gtk_builder_get_object(app_model_get_builder(model),
+						 "add_amsdos_extension"));
+	
+}
+static bool get_file_def_from_form(GtkFileChooser *chooser,
+				   amsdos_file_def_type *file_def) {
+	gchar *filename = gtk_file_chooser_get_filename(chooser);
+	if (filename) {
+		if (amsdos_has_header(filename)) {
+			amsdos_get_file_def_from_header(filename, file_def);
+		} else {
+			amsdos_get_file_def_from_name(filename, file_def);
+		}
+		g_free(filename);
+		return true;
+	}
+	return false;
+}
+
+	GtkEntry *name_entry =
+		GTK_ENTRY(gtk_builder_get_object(app_model_get_builder(model),
+						 "add_amsdos_filename"));
+	strncpy(file_def->name, gtk_entry_get_text(name_entry), AMSDOS_NAME_LEN);
+	GtkEntry *extension_entry =
+		GTK_ENTRY(gtk_builder_get_object(app_model_get_builder(model),
+						 "add_amsdos_extension"));
+	strncpy(file_def->extension, gtk_entry_get_text(extension_entry,
+							AMSDOS_EXT_LEN));
+
+	GtkEntry *filetype_entry =
+		GTK_ENTRY(gtk_builder_get_object(app_model_get_builder(model),
+						 "add_amsdos_filetype"));
+	amsdos_file_type type = AMSDOS_FILE_TYPE_PARSE(gtk_entry_get_text(
+	
+}
+
+G_MODULE_EXPORT void
 cb_dsk_add_file(GtkToolButton *button, app_model_type *model) {
 	LOG(LOG_DEBUG, "cb_dsk_add_file(model=%08x)", model);
 	GtkWidget *dialog = 
 		GTK_WIDGET(gtk_builder_get_object(app_model_get_builder(model),
-						  "dsk_filechooser"));
+						  "add_dsk_filechooser"));
 	gint res = gtk_dialog_run(GTK_DIALOG(dialog));
 	gtk_widget_hide(dialog);
 	amsdos_type *amsdos = app_model_get_amsdos(model);
@@ -340,6 +435,8 @@ cb_dsk_add_file(GtkToolButton *button, app_model_type *model) {
 			gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
 		if (filename) {
 			LOG(LOG_DEBUG, "Chosen filename %s", filename);
+			amsdos_file_def_type file_def;
+			fill_file_def_from_form(model, &file_def);
 			if (amsdos_add_file(amsdos, filename, 
 					    filename,
 					    get_selected_user(model)) != DSK_OK) {
