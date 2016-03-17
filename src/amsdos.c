@@ -347,12 +347,23 @@ static void read_sector(amsdos_type *amsdos, FILE *fd,
 	if (header) {
 		uint32_t header_size = sizeof(amsdos_header_type);
 		memcpy(buffer, header, header_size);
-		fread(buffer + header_size, AMSDOS_SECTOR_SIZE - header_size, 
-		      1, fd);
-		dsk_write_sector(amsdos->dsk, buffer, sector);
+		int nread = fread(buffer + header_size, 
+				  AMSDOS_SECTOR_SIZE - header_size, 
+				  1, fd);
+		if (nread == 1) {
+			dsk_write_sector(amsdos->dsk, buffer, sector);
+		} else {
+			LOG(LOG_ERROR, "Reading from file: %s",
+			    strerror(errno));
+		}
 	} else {
-		fread(buffer, AMSDOS_SECTOR_SIZE, 1, fd);
-		dsk_write_sector(amsdos->dsk, buffer, sector);
+		int nread = fread(buffer, AMSDOS_SECTOR_SIZE, 1, fd);
+		if (nread == 1) {
+			dsk_write_sector(amsdos->dsk, buffer, sector);
+		} else {
+			LOG(LOG_ERROR, "Reading from file: %s",
+			    strerror(errno));
+		}
 	}
 }
 
@@ -866,8 +877,9 @@ bool amsdos_has_header(const char *filename) {
 	return false;
 }
 
-amsdos_file_def_type *amsdos_get_file_def_from_header(const char *filename,
-						      amsdos_file_def_type *file_def) {
+amsdos_file_def_type*
+amsdos_get_file_def_from_header(const char *filename,
+				amsdos_file_def_type *file_def) {
 	amsdos_header_type header;
 	FILE *stream = fopen(filename, "r");
 	if (stream) {
@@ -875,23 +887,24 @@ amsdos_file_def_type *amsdos_get_file_def_from_header(const char *filename,
 			fread(&header, sizeof(amsdos_header_type), 1, stream);
 		fclose(stream);
 		if (nread == 1 && is_amsdos_header(&header)) {
-			strncpy(file_def->name, header->name, AMSDOS_NAME_LEN);
-			strncpy(file_def->extension, header->extension,
+			strncpy(file_def->name, header.name, AMSDOS_NAME_LEN);
+			strncpy(file_def->extension, header.extension,
 				AMSDOS_EXT_LEN);
 			file_def->flags = 0;
-			file_def->load_address = header->load_address;
-			file_def->exec_address = header->entry_address;
-			file_def->amsdos_type = header->type;
+			file_def->load_address = header.load_address;
+			file_def->exec_address = header.entry_address;
+			file_def->amsdos_type = header.type;
 			return file_def;
 		}
 	}
 	return NULL;
 }
 
-amsdos_file_def_type *amsdos_create_file_def_from_name(const char *filename,
-						       amsdos_file_def_type *file_def) {
-	amsdos_get_dir_basename(filename, (char*)&(file_def->name));
-	amsdos_get_dir_extension(filename, (char*)&(file_def->extension));
+amsdos_file_def_type*
+amsdos_create_file_def_from_name(const char *filename,
+				 amsdos_file_def_type *file_def) {
+	get_amsdos_filename(filename, (char*)&(file_def->name));
+	get_amsdos_extension(filename, (char*)&(file_def->extension));
 	file_def->flags = 0;
 	file_def->load_address = 0;
 	file_def->exec_address = 0;
