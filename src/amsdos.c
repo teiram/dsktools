@@ -905,6 +905,7 @@ amsdos_create_file_def_from_name(const char *filename,
 				 amsdos_file_def_type *file_def) {
 	get_amsdos_filename(filename, (char*)&(file_def->name));
 	get_amsdos_extension(filename, (char*)&(file_def->extension));
+	file_def->amsdos_type = AMSDOS_TYPE_ASCII;
 	file_def->flags = 0;
 	file_def->load_address = 0;
 	file_def->exec_address = 0;

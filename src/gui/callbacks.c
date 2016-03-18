@@ -21,6 +21,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include "app_model.h"
 #include "../log.h"
 #include "../amsdos.h"
@@ -188,7 +189,6 @@ static bool is_regular_file(gchar *filename) {
 	}
 }
 
-
 G_MODULE_EXPORT void
 cb_selection_changed(GtkFileChooser *chooser, app_model_type *model) {
 	LOG(LOG_DEBUG, "cb_selection_changed(model=%08x)", model);
@@ -348,17 +348,98 @@ static const gchar* get_entry_text(app_model_type *model,
 	}
 }
 
+static void set_combobox_active(app_model_type *model,
+				const char *combo_name,
+				const char *active_id) {
+	GtkBuilder *builder = app_model_get_builder(model);
+	GtkComboBox *combo = GTK_COMBO_BOX(gtk_builder_get_object(builder,
+								  combo_name));
+	if (!gtk_combo_box_set_active_id(combo, active_id)) {
+		LOG(LOG_WARN, "Unable to set combo to active item %s",
+		    active_id);
+	}
+}
+
+static uint8_t get_combobox_active(app_model_type *model,
+				   const char *combo_name) {
+	GtkBuilder *builder = app_model_get_builder(model);
+	GtkComboBox *combo = GTK_COMBO_BOX(gtk_builder_get_object(builder,
+								  combo_name));
+	const gchar *active = gtk_combo_box_get_active_id(combo);
+	return (uint8_t) atoi(active);
+}
+				   
+
+static void set_checkbutton_state(app_model_type *model,
+				  const char *button_name,
+				  bool active) {
+	GtkBuilder *builder = app_model_get_builder(model);
+	GtkToggleButton *button = 
+		GTK_TOGGLE_BUTTON(gtk_builder_get_object(builder,
+							 button_name));
+	gtk_toggle_button_set_active(button, active);
+}
+
 static void update_file_def_in_form(app_model_type *model,
 				    amsdos_file_def_type *file_def) {
+	char buffer[5];
 	set_entry_text(model, "add_amsdos_filename", file_def->name);
 	set_entry_text(model, "add_amsdos_extension", file_def->extension);
+	snprintf(buffer, 5, "%d", file_def->amsdos_type);
+	set_combobox_active(model, "add_amsdos_filetype", buffer);
+
+	set_checkbutton_state(model, "add_amsdos_flag_read_only",
+			      file_def->flags & READ_ONLY);
+	set_checkbutton_state(model, "add_amsdos_flag_system",
+			      file_def->flags & SYSTEM);
+	set_checkbutton_state(model, "add_amsdos_flag_archive",
+			      file_def->flags & ARCHIVED);
+	bool enabled_addrs = file_def->amsdos_type != AMSDOS_TYPE_ASCII;
+
+	if (enabled_addrs) {
+		snprintf(buffer, 5, "%04X", file_def->load_address);
+		set_entry_text(model, "add_amsdos_loadaddr", buffer);
+		snprintf(buffer, 5, "%04X", file_def->exec_address);
+		set_entry_text(model, "add_amsdos_entryaddr", buffer);
+	} else {
+		set_entry_text(model, "add_amsdos_loadaddr", "");
+		set_entry_text(model, "add_amsdos_entryaddr", "");
+	}
+	widget_set_sensitive(model, "add_amsdos_filename", true);
+	widget_set_sensitive(model, "add_amsdos_extension", true);
+	widget_set_sensitive(model, "add_amsdos_filetype", true);
+	widget_set_sensitive(model, "add_amsdos_flag_read_only", true);
+	widget_set_sensitive(model, "add_amsdos_flag_system", true);
+	widget_set_sensitive(model, "add_amsdos_flag_archive", true);
+
+	widget_set_sensitive(model, "add_amsdos_loadaddr", enabled_addrs);
+	widget_set_sensitive(model, "add_amsdos_entryaddr", enabled_addrs);
+}
+
+static void reset_file_def_in_form(app_model_type *model) {
+	char buffer[5];
+	set_entry_text(model, "add_amsdos_filename", "");
+	set_entry_text(model, "add_amsdos_extension", "");
+	snprintf(buffer, 5, "%d", AMSDOS_TYPE_ASCII);
+	set_combobox_active(model, "add_amsdos_filetype", buffer);
+	set_checkbutton_state(model, "add_amsdos_flag_read_only", false);
+	set_checkbutton_state(model, "add_amsdos_flag_system", false);
+	set_checkbutton_state(model, "add_amsdos_flag_archive", false);
 	
+	widget_set_sensitive(model, "add_amsdos_filename", false);
+	widget_set_sensitive(model, "add_amsdos_extension", false);
+	widget_set_sensitive(model, "add_amsdos_filetype", false);
+	widget_set_sensitive(model, "add_amsdos_flag_read_only", false);
+	widget_set_sensitive(model, "add_amsdos_flag_system", false);
+	widget_set_sensitive(model, "add_amsdos_flag_archive", false);
+	widget_set_sensitive(model, "add_amsdos_loadaddr", false);
+	widget_set_sensitive(model, "add_amsdos_entryaddr", false);
 }
 
 static bool get_file_def_from_form(GtkFileChooser *chooser,
 				   amsdos_file_def_type *file_def) {
 	gchar *filename = gtk_file_chooser_get_filename(chooser);
-	if (filename) {
+	if (filename && is_regular_file(filename)) {
 		if (amsdos_has_header(filename)) {
 			amsdos_get_file_def_from_header(filename, file_def);
 		} else {
@@ -374,10 +455,27 @@ G_MODULE_EXPORT void
 cb_dsk_add_change_selection(GtkFileChooser *chooser,
 			    app_model_type *model) {
 	LOG(LOG_DEBUG, "cb_dsk_add_change_selection");
+	gboolean add_enable = FALSE;
 	amsdos_file_def_type file_def;
 	if (get_file_def_from_form(chooser, &file_def)) {
 		update_file_def_in_form(model, &file_def);
+		add_enable = TRUE;
+	} else {
+		reset_file_def_in_form(model);
 	}
+	widget_set_sensitive(model, "add_dsk_filechooser_addbutton", 
+			     add_enable);
+}
+
+G_MODULE_EXPORT void
+cb_dsk_add_change_filetype(GtkFileChooser *chooser,
+			   app_model_type *model) {
+	LOG(LOG_DEBUG, "cb_dsk_add_change_filetype");
+	gboolean enable_addrs = 
+		get_combobox_active(model, 
+				    "add_amsdos_filetype") != AMSDOS_TYPE_ASCII;
+	widget_set_sensitive(model, "add_amsdos_loadaddr", enable_addrs);
+	widget_set_sensitive(model, "add_amsdos_entryaddr", enable_addrs);
 }
 
 static void 
@@ -416,8 +514,12 @@ cb_dsk_add_file(GtkToolButton *button, app_model_type *model) {
 				update_sensitive_status(model);
 			}
 			g_free(filename);
+		} else {
+			LOG(LOG_DEBUG, "No filename selected");
 		}
-	}   	
+	} else {
+		LOG(LOG_DEBUG, "Result=%d or no amsdos model present", res);
+	}
 }
 
 static void remove_selected_file(GtkTreeModel *tree_model,
