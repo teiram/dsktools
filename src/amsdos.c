@@ -130,26 +130,17 @@ static void set_amsdos_checksum(amsdos_header_type *header) {
 }
 
 static amsdos_header_type *init_amsdos_header(amsdos_header_type *header,
-					      const char *name, 
-					      uint16_t size,
-					      uint8_t user,
-					      uint16_t load_address,
-					      uint16_t entry_address) {
+					      amsdos_file_def_type *file_def,
+					      uint16_t size) {
 	memset(header, 0, sizeof(amsdos_header_type));
-	/* Be aware that these functions set a NULL at end, 
-	 * but they can be used here because of the order
-	 * and because there are some unused bytes after the
-	 * extension
-	 */
-	get_amsdos_filename(name, header->name);
-	get_amsdos_extension(name, header->extension);
-
+	strncpy(header->name, file_def->name, AMSDOS_NAME_LEN);
+	strncpy(header->extension, file_def->extension, AMSDOS_EXT_LEN);
 	header->data_length = 0;
 	header->logical_length = header->file_length = size;
-	header->type = AMSDOS_BINARY;
-	header->user = user;
-	header->load_address = load_address;
-	header->entry_address = entry_address;
+	header->type = file_def->amsdos_type;
+	header->user = file_def->user;
+	header->load_address = file_def->load_address;
+	header->entry_address = file_def->exec_address;
 	set_amsdos_checksum(header);
 	return header;
 }
@@ -226,29 +217,38 @@ static uint32_t get_dir_entry_offset(amsdos_type *amsdos, int index) {
 		+ ((index & 15) << 5);
 }
 
-static int8_t get_dir_entry_for_file(amsdos_type *amsdos, 
-				     const char *name, 
-				     uint8_t user,
-				     amsdos_dir_type **entry) {
-	char filename[AMSDOS_NAME_LEN + 1];
-	char extension[AMSDOS_EXT_LEN + 1];
+static int8_t get_dir_entry_for_file_def(amsdos_type *amsdos, 
+					 amsdos_file_def_type *file, 
+					 amsdos_dir_type **entry) {
 	char buffer[AMSDOS_NAME_LEN + 1];
-	get_amsdos_filename(name, (char*) &filename);
-	get_amsdos_extension(name, (char *)&extension);
-	LOG(LOG_DEBUG,"get_dir_entry_for_file(amsdos(name=%s.%s, user %u))", filename, extension, user);
+	LOG(LOG_DEBUG,"get_dir_entry_for_file(%s.%s@%u))", 
+	    file->name, file->extension, file->user);
 	for (int i = 0; i < AMSDOS_NUM_DIRENT; i++) {
 		*entry = amsdos_get_dir(amsdos, i);
-		if (strncmp(filename, amsdos_get_dir_basename(*entry, buffer), 
+		if (strncmp(file->name, 
+			    amsdos_get_dir_basename(*entry, buffer), 
 			    AMSDOS_NAME_LEN) == 0 &&
-		    strncmp(extension, amsdos_get_dir_extension(*entry, buffer),
+		    strncmp(file->extension, 
+			    amsdos_get_dir_extension(*entry, buffer),
 			    AMSDOS_EXT_LEN) == 0 &&
-		    (*entry)->user == user) {
+		    (*entry)->user == file->user) {
 			LOG(LOG_DEBUG, "Found matching directory entry %u", i);
 			return i;
 		}
 	}
 	LOG(LOG_DEBUG, "No matching entry for file found");
 	return -1;
+}
+
+static int8_t get_dir_entry_for_file(amsdos_type *amsdos, 
+				     const char *name, 
+				     uint8_t user,
+				     amsdos_dir_type **entry) {
+	amsdos_file_def_type file_def;
+	get_amsdos_filename(name, (char *)&(file_def.name));
+	get_amsdos_extension(name, (char *)&(file_def.extension));
+	file_def.user = user;
+	return get_dir_entry_for_file_def(amsdos, &file_def, entry);
 }
 
 static void read_entry_sector(amsdos_type *amsdos, FILE *fd, uint8_t sector,
@@ -344,21 +344,22 @@ static int8_t get_free_block(amsdos_type *amsdos) {
 static void read_sector(amsdos_type *amsdos, FILE *fd, 
 			amsdos_header_type *header, uint8_t sector) {
 	uint8_t buffer[AMSDOS_SECTOR_SIZE];
+	memset(buffer, 0, AMSDOS_SECTOR_SIZE);
+
 	if (header) {
 		uint32_t header_size = sizeof(amsdos_header_type);
 		memcpy(buffer, header, header_size);
 		int nread = fread(buffer + header_size, 
-				  AMSDOS_SECTOR_SIZE - header_size, 
-				  1, fd);
-		if (nread == 1) {
+				  1, AMSDOS_SECTOR_SIZE - header_size, fd);
+		if (nread > 0) {
 			dsk_write_sector(amsdos->dsk, buffer, sector);
 		} else {
 			LOG(LOG_ERROR, "Reading from file: %s",
 			    strerror(errno));
 		}
 	} else {
-		int nread = fread(buffer, AMSDOS_SECTOR_SIZE, 1, fd);
-		if (nread == 1) {
+		int nread = fread(buffer, 1, AMSDOS_SECTOR_SIZE, fd);
+		if (nread > 0) {
 			dsk_write_sector(amsdos->dsk, buffer, sector);
 		} else {
 			LOG(LOG_ERROR, "Reading from file: %s",
@@ -383,12 +384,12 @@ static off_t get_file_size(const char *filename) {
 }
 
 static off_t add_file_checks(amsdos_type *amsdos, const char *source_file,
-			     const char *target_name, uint8_t user) {
-	LOG(LOG_DEBUG, "add_file_checks(source=%s, target=%s, user=%u)",
-	    source_file, target_name, user);
-	if (amsdos_exists_file(amsdos, target_name, user)) {
-		error_add_error("File %s(%d) already exists in dsk",
-			  target_name, user);
+			     amsdos_file_def_type *target) {
+	LOG(LOG_DEBUG, "add_file_checks(source=%s, target=%s.%s@%u)",
+	    source_file, target->name, target->extension, target->user);
+	if (amsdos_exists_file_def(amsdos, target)) {
+		error_add_error("File %s.%s@%u already exists in dsk",
+				target->name, target->extension, target->user);
 		return DSK_ERROR;
 	}
 
@@ -414,9 +415,9 @@ static off_t add_file_checks(amsdos_type *amsdos, const char *source_file,
 
 static int add_file_internal(amsdos_type *amsdos, amsdos_header_type *header,
 			     off_t size, FILE *stream, 
-			     const char *name, uint8_t user) {
-	LOG(LOG_DEBUG, "add_file_internal(size=%d, name=%s, user=%u)",
-	    size, name, user);
+			     amsdos_file_def_type *target) {
+	LOG(LOG_DEBUG, "add_file_internal(size=%d, target=%s.%s@%u)",
+	    size, target->name, target->extension, target->user);
 	uint8_t extent = 0;
 	for (off_t pos = 0; pos < size;) {
 		amsdos_dir_type *dir_entry  = get_next_free_dir_entry(amsdos);
@@ -424,13 +425,10 @@ static int add_file_internal(amsdos_type *amsdos, amsdos_header_type *header,
 			error_add_error("Exhausted directory entries");
 			return DSK_ERROR;
 		}
-		dir_entry->user = user;
+		dir_entry->user = target->user;
 		dir_entry->extent_low = extent++;
-		char buffer[AMSDOS_NAME_LEN + 1];
-		get_amsdos_filename(name, buffer);
-		memcpy(dir_entry->name, buffer, AMSDOS_NAME_LEN);
-		get_amsdos_extension(name, buffer);
-		memcpy(dir_entry->extension, buffer, AMSDOS_EXT_LEN);
+		memcpy(dir_entry->name, target->name, AMSDOS_NAME_LEN);
+		memcpy(dir_entry->extension, target->extension, AMSDOS_EXT_LEN);
 		/* Records are of 128bytes 
 		   Blocks are of 1 Kbyte (2 sectors)
 		   The maximum blocks allocated per file are 16, what equals to
@@ -458,7 +456,7 @@ static int add_file_internal(amsdos_type *amsdos, amsdos_header_type *header,
 			}
 		}
 	}
-	return DSK_OK;	
+	return DSK_OK;
 }
 
 bool amsdos_is_dir_deleted(amsdos_dir_type *dir_entry) {
@@ -678,6 +676,61 @@ bool amsdos_exists_file(amsdos_type *amsdos, const char *name, uint8_t user) {
 	return get_dir_entry_for_file(amsdos, name, user, &dir_entry) >= 0;
 }
 
+bool amsdos_exists_file_def(amsdos_type *amsdos, 
+			    amsdos_file_def_type *file_def) {
+	amsdos_dir_type *dir_entry;
+	return get_dir_entry_for_file_def(amsdos, file_def, &dir_entry) >= 0;
+}
+
+amsdos_header_type *get_amsdos_header(FILE *stream,
+				      amsdos_file_def_type *file_def,
+				      amsdos_header_type *header) {
+	if (file_def->amsdos_type != AMSDOS_TYPE_ASCII) {
+		size_t nread = fread(header, sizeof(amsdos_header_type), 1, 
+				     stream);
+		if (nread < 1) {
+			error_add_error("Unable to read header from file %s. %s",
+					source_file, strerror(errno));
+			fclose(stream);
+			return NULL;
+		}
+
+		if (!is_amsdos_header(header)) {
+			LOG(LOG_DEBUG, "No AMSDOS header found. Creating a new one");
+			size += sizeof(amsdos_header_type);
+			rewind(stream);
+		}
+		init_amsdos_header(header, file_def, size);
+		return header;
+	} else {
+		return NULL;
+	}
+}
+
+int amsdos_add_file_with_def(amsdos_type *amsdos,
+			     const char *source,
+			     amsdos_file_def_type *target) {
+	LOG(LOG_DEBUG, "amsdos_add_file_with_def(source=%s, dest=%s.%s@%u",
+	    source,
+	    target->name,
+	    target->extension,
+	    target->user);
+
+	if ((size = add_file_checks(amsdos, source, file_def)) < DSK_OK) {
+		LOG(LOG_ERROR, "In file checks %s", error_get_error_message());
+		return DSK_ERROR;
+	}
+
+	FILE *stream = fopen(source_file, "r");
+	
+	amsdos_header_type header;
+	amsdos_header_type *header_p = 
+		get_amsdos_header(stream, file_def, header);
+
+	int retcode = add_file_internal(amsdos, header, size, stream, target);
+	fclose(stream);
+	return retcode;
+}
 
 int amsdos_add_file(amsdos_type *amsdos, const char *source_file, 
 		    const char *target_name,

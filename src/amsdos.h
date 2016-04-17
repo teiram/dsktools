@@ -102,6 +102,7 @@ typedef struct {
 typedef struct {
 	char name[AMSDOS_NAME_LEN + 1];
 	char extension[AMSDOS_EXT_LEN + 1];
+	uint8_t user;
 	uint8_t flags;
 	uint8_t amsdos_type;
 	uint16_t load_address;
@@ -181,6 +182,9 @@ void amsdos_file_info_free(amsdos_file_info_list *list);
 
 int amsdos_add_file(amsdos_type *amsdos, const char *source_file,
 		    const char *target_file, uint8_t user);
+int amsdos_add_file_with_def(amsdos_type *amsdos,
+			     const char *source,
+			     amsdos_file_def_type *target);
 int amsdos_add_ascii_file(amsdos_type *amsdos, const char *source_file, 
 			  const char *target_name, uint8_t user);
 int amsdos_add_binary_file(amsdos_type *amsdos, const char *source_file,

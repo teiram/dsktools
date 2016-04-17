@@ -380,6 +380,15 @@ static void set_checkbutton_state(app_model_type *model,
 	gtk_toggle_button_set_active(button, active);
 }
 
+static bool get_checkbutton_active(app_model_type *model,
+				  const char *button_name) {
+	GtkBuilder *builder = app_model_get_builder(model);
+	GtkToggleButton *button = 
+		GTK_TOGGLE_BUTTON(gtk_builder_get_object(builder,
+							 button_name));
+	return gtk_toggle_button_get_active(button);
+}
+
 static void update_file_def_in_form(app_model_type *model,
 				    amsdos_file_def_type *file_def) {
 	char buffer[5];
@@ -486,7 +495,23 @@ fill_file_def_from_form(app_model_type *model,
 	strncpy(file_def->extension, get_entry_text(model, 
 						    "add_amsdos_extension"),
 		AMSDOS_EXT_LEN);
+	file_def->amsdos_type = get_combobox_active(model, 
+						    "add_amsdos_filetype");
+	file_def->load_address = strtol(get_entry_text(model, 
+						       "add_amsdos_loadaddr"),
+					NULL, 16);
+	file_def->exec_address = strtol(get_entry_text(model, 
+						       "add_amsdos_entryaddr"),
+					NULL, 16);
+	file_def->flags = 
+		(get_checkbutton_active(model, "add_amsdos_flag_read_only") &
+		 READ_ONLY) |
+		(get_checkbutton_active(model, "add_amsdos_flag_system") &
+		 SYSTEM) |
+		(get_checkbutton_active(model, "add_amsdos_flag_archive") &
+		 ARCHIVED);
 }
+
 G_MODULE_EXPORT void
 cb_dsk_add_file(GtkToolButton *button, app_model_type *model) {
 	LOG(LOG_DEBUG, "cb_dsk_add_file(model=%08x)", model);
