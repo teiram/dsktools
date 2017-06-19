@@ -81,6 +81,9 @@ static const char* get_basename(const char *name) {
 	return result;
 }
 
+bool amsdos_exists_file_def(amsdos_type *amsdos, 
+			    amsdos_file_def_type *file_def);
+
 char *get_amsdos_filename(const char *name, char *buffer) {
 	LOG(LOG_TRACE, "get_amsdos_filename(name=%s)", name);
 
@@ -144,7 +147,6 @@ static amsdos_header_type *init_amsdos_header(amsdos_header_type *header,
 	set_amsdos_checksum(header);
 	return header;
 }
-
 
 void print_amsdos_header(amsdos_header_type *header, FILE *stream) {
 	fprintf(stream, "User = %u\n", header->user);
@@ -684,23 +686,24 @@ bool amsdos_exists_file_def(amsdos_type *amsdos,
 
 amsdos_header_type *get_amsdos_header(FILE *stream,
 				      amsdos_file_def_type *file_def,
-				      amsdos_header_type *header) {
+				      amsdos_header_type *header,
+				      off_t *size) {
 	if (file_def->amsdos_type != AMSDOS_TYPE_ASCII) {
 		size_t nread = fread(header, sizeof(amsdos_header_type), 1, 
 				     stream);
 		if (nread < 1) {
-			error_add_error("Unable to read header from file %s. %s",
-					source_file, strerror(errno));
+			error_add_error("Unable to read header from pointer. %s",
+					strerror(errno));
 			fclose(stream);
 			return NULL;
 		}
 
 		if (!is_amsdos_header(header)) {
 			LOG(LOG_DEBUG, "No AMSDOS header found. Creating a new one");
-			size += sizeof(amsdos_header_type);
+			*(size) += sizeof(amsdos_header_type);
 			rewind(stream);
 		}
-		init_amsdos_header(header, file_def, size);
+		init_amsdos_header(header, file_def, *size);
 		return header;
 	} else {
 		return NULL;
@@ -716,18 +719,19 @@ int amsdos_add_file_with_def(amsdos_type *amsdos,
 	    target->extension,
 	    target->user);
 
-	if ((size = add_file_checks(amsdos, source, file_def)) < DSK_OK) {
+	off_t size;
+	if ((size = add_file_checks(amsdos, source, target)) < DSK_OK) {
 		LOG(LOG_ERROR, "In file checks %s", error_get_error_message());
 		return DSK_ERROR;
 	}
 
-	FILE *stream = fopen(source_file, "r");
+	FILE *stream = fopen(source, "r");
 	
 	amsdos_header_type header;
 	amsdos_header_type *header_p = 
-		get_amsdos_header(stream, file_def, header);
+		get_amsdos_header(stream, target, &header, &size);
 
-	int retcode = add_file_internal(amsdos, header, size, stream, target);
+	int retcode = add_file_internal(amsdos, header_p, size, stream, target);
 	fclose(stream);
 	return retcode;
 }
@@ -740,15 +744,19 @@ int amsdos_add_file(amsdos_type *amsdos, const char *source_file,
 	    source_file, target_name, user);
 
 	off_t size;
+	amsdos_file_def_type target;
+	amsdos_file_def_type *target_p = 
+	    amsdos_create_file_def_from_name(target_name, 
+	        &target);
 	if ((size = add_file_checks(amsdos, source_file, 
-				    target_name, user)) < DSK_OK) {
+				    target_p)) < DSK_OK) {
 		LOG(LOG_ERROR, "In file checks %s", error_get_error_message());
 		return DSK_ERROR;
 	}
 
 	FILE *stream = fopen(source_file, "r");
 	int retcode = add_file_internal(amsdos, NULL, size, stream, 
-					target_name, user);
+					target_p);
 	fclose(stream);
 	return retcode;
 }
@@ -760,10 +768,15 @@ int amsdos_add_binary_file(amsdos_type *amsdos, const char *source_file,
 	LOG(LOG_DEBUG, "amsdos_add_binary_file(source=%s, target=%s, user=%u, load_address=0x%04x, entry_address=0x%04x)",
 	    source_file, target_name, user,
 	    load_address, entry_address);
+
+	amsdos_file_def_type target;
+	amsdos_file_def_type *target_p = 
+	    amsdos_create_file_def_from_name(target_name, 
+	        &target);
 	
 	off_t size;
 	if ((size = add_file_checks(amsdos, source_file, 
-				    target_name, user)) < DSK_OK) {
+				    target_p)) < DSK_OK) {
 		LOG(LOG_ERROR, "In file checks %s",error_get_error_message());
 		return DSK_ERROR;
 	}
@@ -786,11 +799,9 @@ int amsdos_add_binary_file(amsdos_type *amsdos, const char *source_file,
 		size += sizeof(amsdos_header_type);
 		rewind(stream);
 	}
-	init_amsdos_header(&header, target_name, size,
-			   user, load_address, 
-			   entry_address);
+	init_amsdos_header(&header, target_p, size);
 	int retcode = add_file_internal(amsdos, &header, size, stream, 
-					target_name, user);
+					target_p);
 	fclose(stream);
 	return retcode;
 }
@@ -802,8 +813,12 @@ int amsdos_add_ascii_file(amsdos_type *amsdos, const char *source_file,
 	    source_file, target_name, user);
 
 	off_t size;
+	amsdos_file_def_type target;
+	amsdos_file_def_type *target_p = 
+	    amsdos_create_file_def_from_name(target_name, 
+	        &target);
 	if ((size = add_file_checks(amsdos, source_file, 
-				    target_name, user)) < DSK_OK) {
+				    target_p)) < DSK_OK) {
 		LOG(LOG_ERROR, "In file checks %s", error_get_error_message());
 		return DSK_ERROR;
 	}
@@ -829,7 +844,7 @@ int amsdos_add_ascii_file(amsdos_type *amsdos, const char *source_file,
 	}
 
 	int retcode = add_file_internal(amsdos, &header, size, stream, 
-					target_name, user);
+					target_p);
 	fclose(stream);
 	return retcode;
 }
